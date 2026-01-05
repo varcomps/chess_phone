@@ -8,10 +8,10 @@ export function initBoard() {
     gameState.board = Array(8).fill(null).map(() => Array(8).fill(null));
     const layout = ['r','n','b','q','k','b','n','r'];
     for(let i=0; i<8; i++) {
-        gameState.board[0][i] = { type: layout[i], color: 'b', moved: false, armor: 0, movedThisTurn: false };
-        gameState.board[1][i] = { type: 'p', color: 'b', moved: false, armor: 0, movedThisTurn: false };
-        gameState.board[6][i] = { type: 'p', color: 'w', moved: false, armor: 0, movedThisTurn: false };
-        gameState.board[7][i] = { type: layout[i], color: 'w', moved: false, armor: 0, movedThisTurn: false };
+        gameState.board[0][i] = { type: layout[i], color: 'b', moved: false, armor: 0, movedThisTurn: false, rank: 1 };
+        gameState.board[1][i] = { type: 'p', color: 'b', moved: false, armor: 0, movedThisTurn: false, rank: 1 };
+        gameState.board[6][i] = { type: 'p', color: 'w', moved: false, armor: 0, movedThisTurn: false, rank: 1 };
+        gameState.board[7][i] = { type: layout[i], color: 'w', moved: false, armor: 0, movedThisTurn: false, rank: 1 };
     }
     gameState.actionsLeft = (gameState.playerColor === 'w') ? 1 : 0; 
     recalcBoard(); render();
@@ -49,10 +49,13 @@ export function handleData(d) {
         if (gameState.board[d.r][d.c]) gameState.board[d.r][d.c].armor = (gameState.board[d.r][d.c].armor || 0) + 1;
     } else if (d.type === 'transform') {
         if (gameState.board[d.from.r][d.from.c] && gameState.board[d.from.r][d.from.c].type === 'p') gameState.board[d.from.r][d.from.c] = null;
-        gameState.board[d.to.r][d.to.c] = { type: d.newType, color: oppColor, moved: true, armor: 0 };
+        // Для элитных:
+        const isElite = d.newType.endsWith('_2');
+        gameState.board[d.to.r][d.to.c] = { type: d.newType, color: oppColor, moved: true, armor: 0, rank: isElite ? 2 : 1 };
     } else if (d.type === 'build') {
         let obj = { type: d.buildType, color: oppColor };
         if (d.buildType === 'fortress') obj.hp = FORTRESS_HP['fortress'];
+        if (d.buildType === 'barricade') obj.hp = FORTRESS_HP['barricade'];
         gameState.board[d.r][d.c] = obj;
     } else if (d.type === 'upgrade') {
         if(gameState.board[d.r][d.c]) {
@@ -98,38 +101,53 @@ export function turnEndLogic() {
     collectResources();
 }
 
+export function getMaxResourceLimit() {
+    const warehouses = getBuildingCount('warehouse');
+    return 5 + (warehouses * 5); // Базовый 5 + 5 за каждый склад
+}
+
 export function collectResources() {
     let produced = { w:0, s:0, m:0, c:0, p:0, f:0, g:0, cl:0, poly:0 };
+    const maxLimit = getMaxResourceLimit();
+
     for(let r=0; r<gameState.rows; r++) {
         for(let c=0; c<gameState.cols; c++) {
             const p = gameState.board[r][c];
             if (p && p.color === gameState.playerColor) {
-                if (p.type === 'mine') { if (gameState.myResources.stone < 5) produced.s++; }
-                if (p.type === 'mine_t2') { if (gameState.myResources.stone < 5) produced.s++; if (gameState.myResources.metal < 5) produced.m++; }
-                if (p.type === 'mine_t3') { if (gameState.myResources.stone < 5) produced.s++; if (gameState.myResources.metal < 5) produced.m++; if (gameState.myResources.gem < 5) produced.g++; }
-                if (p.type === 'lumber') { if (gameState.myResources.wood < 5) produced.w++; }
-                if (p.type === 'lumber_t2') { if (gameState.myResources.wood < 5) produced.w++; if (gameState.myResources.cedar < 5) produced.c++; }
-                if (p.type === 'lumber_t3') { if (gameState.myResources.wood < 5) produced.w++; if (gameState.myResources.cedar < 5) produced.c++; if (gameState.myResources.polymer < 5) produced.poly++; }
-                if (p.type === 'furnace') { if (gameState.myResources.cedar > 0 && gameState.myResources.coal < 5) { gameState.myResources.cedar--; produced.cl++; }}
-                if (p.type === 'farm') { if (gameState.myResources.food < 5) produced.f++; }
-                if (p.type === 'papermill') { if (gameState.myResources.wood > 0 && gameState.myResources.paper < 5) { gameState.myResources.wood--; produced.p++; }}
+                if (p.type === 'mine') { if (gameState.myResources.stone < maxLimit) produced.s++; }
+                if (p.type === 'mine_t2') { if (gameState.myResources.stone < maxLimit) produced.s++; if (gameState.myResources.metal < maxLimit) produced.m++; }
+                if (p.type === 'mine_t3') { if (gameState.myResources.stone < maxLimit) produced.s++; if (gameState.myResources.metal < maxLimit) produced.m++; if (gameState.myResources.gem < maxLimit) produced.g++; }
+                if (p.type === 'lumber') { if (gameState.myResources.wood < maxLimit) produced.w++; }
+                if (p.type === 'lumber_t2') { if (gameState.myResources.wood < maxLimit) produced.w++; if (gameState.myResources.cedar < maxLimit) produced.c++; }
+                if (p.type === 'lumber_t3') { if (gameState.myResources.wood < maxLimit) produced.w++; if (gameState.myResources.cedar < maxLimit) produced.c++; if (gameState.myResources.polymer < maxLimit) produced.poly++; }
+                if (p.type === 'furnace') { if (gameState.myResources.cedar > 0 && gameState.myResources.coal < maxLimit) { gameState.myResources.cedar--; produced.cl++; }}
+                if (p.type === 'farm') { if (gameState.myResources.food < maxLimit) produced.f++; }
+                if (p.type === 'papermill') { if (gameState.myResources.wood > 0 && gameState.myResources.paper < maxLimit) { gameState.myResources.wood--; produced.p++; }}
+                if (p.type === 'papermill_t2') { 
+                    if (gameState.myResources.wood > 0 && gameState.myResources.paper < maxLimit) { 
+                        gameState.myResources.wood--; 
+                        produced.p += 2; 
+                    }
+                }
             }
         }
     }
-    gameState.myResources.wood = Math.min(5, gameState.myResources.wood + produced.w);
-    gameState.myResources.stone = Math.min(5, gameState.myResources.stone + produced.s);
-    gameState.myResources.metal = Math.min(5, gameState.myResources.metal + produced.m);
-    gameState.myResources.cedar = Math.min(5, gameState.myResources.cedar + produced.c);
-    gameState.myResources.paper = Math.min(5, gameState.myResources.paper + produced.p);
-    gameState.myResources.food = Math.min(5, gameState.myResources.food + produced.f);
-    gameState.myResources.gem = Math.min(5, gameState.myResources.gem + produced.g);
-    gameState.myResources.coal = Math.min(5, gameState.myResources.coal + produced.cl);
-    gameState.myResources.polymer = Math.min(5, gameState.myResources.polymer + produced.poly);
+    
+    // Применение добытых ресурсов (БЕЗ floating text)
+    if (produced.w > 0) gameState.myResources.wood = Math.min(maxLimit, gameState.myResources.wood + produced.w);
+    if (produced.s > 0) gameState.myResources.stone = Math.min(maxLimit, gameState.myResources.stone + produced.s);
+    if (produced.m > 0) gameState.myResources.metal = Math.min(maxLimit, gameState.myResources.metal + produced.m);
+    if (produced.c > 0) gameState.myResources.cedar = Math.min(maxLimit, gameState.myResources.cedar + produced.c);
+    if (produced.p > 0) gameState.myResources.paper = Math.min(maxLimit, gameState.myResources.paper + produced.p);
+    if (produced.f > 0) gameState.myResources.food = Math.min(maxLimit, gameState.myResources.food + produced.f);
+    if (produced.g > 0) gameState.myResources.gem = Math.min(maxLimit, gameState.myResources.gem + produced.g);
+    if (produced.cl > 0) gameState.myResources.coal = Math.min(maxLimit, gameState.myResources.coal + produced.cl);
+    if (produced.poly > 0) gameState.myResources.polymer = Math.min(maxLimit, gameState.myResources.polymer + produced.poly);
 }
 
 export function buildSomething(r, c, type) {
     let apCost = 2;
-    if (type === 'lumber' || type === 'mine' || type === 'demolish' || type === 'hq') apCost = 1;
+    if (type === 'lumber' || type === 'mine' || type === 'demolish' || type === 'hq' || type === 'barricade') apCost = 1;
 
     if (type === 'demolish') {
         const target = gameState.board[r][c];
@@ -155,6 +173,8 @@ export function buildSomething(r, c, type) {
         
         if (type === 'academy_t2') { 
             requiredType = 'academy'; 
+        } else if (type === 'papermill_t2') {
+            requiredType = 'papermill';
         } else if (type.endsWith('_t2')) {
             baseType = type.replace('_t2', '');
             requiredType = baseType; 
@@ -196,13 +216,13 @@ export function buildSomething(r, c, type) {
     gameState.actionsLeft -= apCost;
     let newObj = { type: type, color: gameState.playerColor };
     if (type === 'fortress') newObj.hp = FORTRESS_HP['fortress'];
+    if (type === 'barricade') newObj.hp = FORTRESS_HP['barricade'];
     gameState.board[r][c] = newObj;
     sendNetworkMessage({ type: 'build', r, c, buildType: type, isLast: (gameState.actionsLeft<=0) });
     if(gameState.actionsLeft <= 0) showTurnBanner(false);
     updateUI(); render(); 
 }
 
-// ДОБАВЛЕН EXPORT
 export function getBuildingCount(baseType) {
     let count = 0;
     gameState.board.flat().forEach(p => {
@@ -367,7 +387,7 @@ export function recruitPawn() {
     
     gameState.myResources.food -= 2;
     gameState.actionsLeft--;
-    gameState.board[targetR][campC] = { type: 'p', color: gameState.playerColor, moved: true, armor: 0, movedThisTurn: true };
+    gameState.board[targetR][campC] = { type: 'p', color: gameState.playerColor, moved: true, armor: 0, movedThisTurn: true, rank: 1 };
     sendNetworkMessage({ type: 'transform', from: {r: campR, c: campC}, to: {r: targetR, c: campC}, newType: 'p', isLast: (gameState.actionsLeft <= 0) });
     if(gameState.actionsLeft <= 0) showTurnBanner(false);
     updateUI(); render();
@@ -406,7 +426,21 @@ export function finishAcademyRecruit(newType, paperCost) {
     gameState.myResources.paper -= paperCost;
 
     gameState.board[from.r][from.c] = null;
-    gameState.board[spawnR][spawnC] = { type: newType, color: gameState.playerColor, moved: true, freeMoveUsed: false, armor: 0, movedThisTurn: true };
+    
+    // ПРИСВАИВАЕМ РАНГ. Если юнит элитный (_2), он получает ранг 2 навсегда.
+    const isElite = newType.endsWith('_2');
+    const unitRank = isElite ? 2 : 1;
+
+    gameState.board[spawnR][spawnC] = { 
+        type: newType, 
+        color: gameState.playerColor, 
+        moved: true, 
+        freeMoveUsed: false, 
+        armor: 0, 
+        movedThisTurn: true,
+        rank: unitRank // <-- Persistent Elite Status
+    };
+
     gameState.actionsLeft--; 
     sendNetworkMessage({ type: 'transform', from: from, to: {r:spawnR, c:spawnC}, newType: newType, isLast: (gameState.actionsLeft <= 0) });
     if(gameState.actionsLeft <= 0) showTurnBanner(false);
@@ -524,7 +558,7 @@ export function movePiece(fr, fc, tr, tc) {
     else { gameState.board[fr][fc] = null; }
 
     if (dest && dest.color !== piece.color) {
-        if (dest.type.startsWith('fortress')) {
+        if (dest.type.startsWith('fortress') || dest.type === 'barricade') {
             if (dest.hp > 1) {
                 dest.hp--;
                 if (gameState.board[fr][fc] && gameState.board[fr][fc].type === 'forge') { gameState.board[fr][fc] = piece; piece.onForge = true; }
@@ -598,7 +632,7 @@ export function isNearOwnPiece(r, c, type) {
                     
                     const neighborIsBuilding = BUILDINGS.includes(neighbor.type) || neighbor.type === 'forge';
 
-                    if (type.startsWith('fortress')) {
+                    if (type.startsWith('fortress') || type === 'barricade') {
                          if (targetIsFog === isFog(nr, nc)) return true;
                     } 
                     else {
@@ -614,12 +648,14 @@ export function isNearOwnPiece(r, c, type) {
 }
 
 export function onPiecePointerDown(e, fr, fc) {
-    if (gameState.gameOver || !gameState.currentRoom || gameState.actionsLeft <= 0 || gameState.isBuildMode) {
-         if (!gameState.isBuildMode && gameState.board[fr][fc] && gameState.board[fr][fc].onForge && gameState.board[fr][fc].color === gameState.playerColor) {
+    if (gameState.gameOver || !gameState.currentRoom || gameState.actionsLeft <= 0) {
+         if (gameState.board[fr][fc] && gameState.board[fr][fc].onForge && gameState.board[fr][fc].color === gameState.playerColor) {
              gameState.selectedPiece = {r: fr, c: fc}; render(); 
          }
          return;
     }
+    // УБРАНА ПРОВЕРКА gameState.isBuildMode, чтобы можно было кликать и двигать фигуры
+    
     if (gameState.board[fr][fc] && gameState.board[fr][fc].type === 'camp') return;
     const p = gameState.board[fr][fc];
     if (!p || p.color !== gameState.playerColor) return;

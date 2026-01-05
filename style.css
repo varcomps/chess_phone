@@ -352,6 +352,11 @@ button:active { transform: scale(0.96); }
 }
 .piece:active { transform: scale(1.1); }
 
+/* GOLD GLOW FOR ELITE UNITS (TIER 2) */
+.elite-unit {
+    filter: drop-shadow(0 0 2px gold) drop-shadow(0 0 4px yellow) !important;
+}
+
 /* --- ЭФФЕКТЫ ФИГУР --- */
 @keyframes shred-tear {
     0% { clip-path: inset(0 0 0 0); transform: translateX(0); filter: hue-rotate(0deg); opacity: 1; }

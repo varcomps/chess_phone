@@ -26,11 +26,11 @@
     <div class="modal-content">
         <h2 style="color: #f1c40f; margin:0 0 15px 0;">ВЕРБОВКА (1 ОД)</h2>
         <div style="margin-bottom: 15px;">
-            <div style="color:#aaa; font-size:0.8em; margin-bottom:5px; text-transform:uppercase;">Стандарт (2 Бумаги 📜)</div>
+            <div style="color:#aaa; font-size:0.8em; margin-bottom:5px; text-transform:uppercase;">TIER 1 (2 Бумаги 📜)</div>
             <div class="promo-options" id="acad-std-options"></div>
         </div>
         <div id="acad-elite-section" class="hidden">
-            <div style="color:gold; font-size:0.8em; margin-bottom:5px; text-transform:uppercase;">Элита (5 Бумаги 📜)</div>
+            <div style="color:gold; font-size:0.8em; margin-bottom:5px; text-transform:uppercase;">TIER 2 (5 Бумаги 📜)</div>
             <div class="promo-options" id="acad-elite-options"></div>
         </div>
         <button onclick="closeModal('academy-modal')" style="margin-top:20px; background:#c0392b; width:100%;">ОТМЕНА</button>
@@ -126,6 +126,8 @@
             <div class="build-item t1-item" data-type="camp" data-label="ЛАГЕРЬ НАЕМНИКОВ" data-desc="Позволяет нанимать Пешек за 2 Еды." data-cost="3 Дерева, 1 ОД | 2 ОД" onpointerdown="onSidebarPointerDown(event, 'camp')"><span class="icon">⛺</span></div>
             
             <div class="build-item t1-item" data-type="fortress" data-label="КАМЕННАЯ СТЕНА" data-desc="Блокирует проход. 2 Здоровья. Можно строить где угодно на своей земле." data-cost="4 Камня | 2 ОД" onpointerdown="onSidebarPointerDown(event, 'fortress')"><span class="icon">🧱</span></div>
+
+            <div class="build-item t1-item" data-type="barricade" data-label="БАРРИКАДА" data-desc="Легкое укрытие. 1 Здоровье. Блокирует проход." data-cost="2 Камня | 1 ОД" onpointerdown="onSidebarPointerDown(event, 'barricade')"><span class="icon">🚧</span></div>
             
             <div class="build-item t1-item" data-type="papermill" data-label="БУМАЖНАЯ ФАБРИКА" data-desc="Перерабатывает 1 Дерево в 1 Бумагу." data-cost="2 Камня, 2 Дерева | 2 ОД" onpointerdown="onSidebarPointerDown(event, 'papermill')"><span class="icon">📜</span></div>
         </div>
@@ -142,6 +144,10 @@
             <div class="build-item t2-item" data-type="furnace" data-label="ПЛАВИЛЬНЯ" data-desc="Сжигает 1 Кедр, чтобы получить 1 Уголь." data-cost="3 Кам, 1 Мет | 2 ОД" onpointerdown="onSidebarPointerDown(event, 'furnace')"><span class="icon">🔥</span></div>
             
             <div class="build-item t2-item" data-type="fortress_t2" data-label="УКРЕПЛЕННЫЙ БАСТИОН" data-desc="АПГРЕЙД СТЕНЫ. 4 Здоровья." data-cost="4 Кам, 2 Мет | 2 ОД" onpointerdown="onSidebarPointerDown(event, 'fortress_t2')"><span class="icon">🛡️</span></div>
+
+            <div class="build-item t2-item" data-type="warehouse" data-label="СКЛАД" data-desc="Увеличивает лимит всех ресурсов на +5." data-cost="2Дер, 2Кедр, 2Кам, 2Мет | 2 ОД" onpointerdown="onSidebarPointerDown(event, 'warehouse')"><span class="icon">📦</span></div>
+            
+            <div class="build-item t2-item" data-type="papermill_t2" data-label="ТИПОГРАФИЯ" data-desc="АПГРЕЙД ФАБРИКИ. Производит 2 бумаги за 1 дерево." data-cost="2 Кедр, 2 Мет | 2 ОД" onpointerdown="onSidebarPointerDown(event, 'papermill_t2')"><span class="icon">🖨️</span></div>
         </div>
 
         <div class="build-group group-elite">
