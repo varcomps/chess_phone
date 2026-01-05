@@ -12,7 +12,7 @@
     --tier-1: #bdc3c7;
     --tier-2: #2ecc71;
     --tier-3: #00d2d3;
-    --tier-4: #9b59b6; /* Фиолетовый для T4 */
+    --tier-4: #9b59b6; 
     
     --sq-size: 40px; 
 }
@@ -121,7 +121,6 @@ body::before {
 .res-paper { color: #f1c40f; } .res-food { color: #2ecc71; }
 .res-gem { color: #00d2d3; text-shadow: 0 0 8px rgba(0, 210, 211, 0.6); }
 .res-coal { color: #95a5a6; } .res-poly { color: #e056fd; text-shadow: 0 0 8px rgba(224, 86, 253, 0.6); }
-/* Новые цвета ресурсов */
 .res-uranium { color: #2ecc71; text-shadow: 0 0 8px #2ecc71; }
 .res-chem { color: #cddc39; text-shadow: 0 0 8px #cddc39; }
 
@@ -290,7 +289,7 @@ button:active { transform: scale(0.96); }
 #board { 
     display: grid; 
     grid-template-columns: repeat(var(--cols), var(--sq-size)); 
-    /* Фиксируем высоту строк, чтобы избежать сжатия */
+    /* ВОЗВРАЩАЕМ ЖЕСТКИЙ РАЗМЕР ПО УМОЛЧАНИЮ (Стабильность) */
     grid-template-rows: repeat(var(--rows), var(--sq-size)); 
     position: relative; 
     background: #000;
@@ -302,6 +301,12 @@ button:active { transform: scale(0.96); }
     width: max-content; height: max-content;
 }
 
+/* Добавляем этот НОВЫЙ класс ниже блока #board */
+#board.animating-board {
+    /* Только во время анимации разрешаем строкам схлопываться */
+    grid-template-rows: repeat(var(--rows), min-content) !important;
+}
+
 .build-mode #board { 
     border: 4px solid var(--accent) !important; 
     box-shadow: 0 0 40px rgba(243, 156, 18, 0.4) !important; 
@@ -311,17 +316,18 @@ button:active { transform: scale(0.96); }
 
 .square { 
     width: var(--sq-size); 
-    height: var(--sq-size); 
+    height: var(--sq-size); /* Явная высота важна для min-content */
     display: flex; justify-content: center; align-items: center; 
     position: relative; box-sizing: border-box; 
     background-color: #222; 
     overflow: hidden; 
-    transition: height 2s cubic-bezier(0.2, 0.8, 0.2, 1);
+    /* Ускорим немного анимацию для большей динамики */
+    transition: height 1.5s cubic-bezier(0.25, 1, 0.5, 1);
 }
 .square.light { background-color: var(--sq-light); }
 .square.dark { background-color: var(--sq-dark); }
 
-/* --- ТУМАН (ОБНОВЛЕННЫЙ) --- */
+/* --- ТУМАН --- */
 .square.fog {
     background-image: 
         linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
@@ -336,8 +342,13 @@ button:active { transform: scale(0.96); }
 .square.fog.dark { background-color: #202020; }
 
 .square.collapsed {
-    height: 0 !important; min-height: 0 !important;
-    border: none !important; margin: 0 !important; padding: 0 !important;
+    height: 0 !important; 
+    min-height: 0 !important;
+    border: none !important; 
+    margin: 0 !important; 
+    padding: 0 !important;
+    box-shadow: none !important;
+    outline: none !important;
 }
 
 .square.fog-waiting { opacity: 0; transform: scale(0.1); }
@@ -352,7 +363,7 @@ button:active { transform: scale(0.96); }
     box-shadow: inset 0 0 0 3px #f1c40f; 
 }
 
-/* --- ПОДСВЕТКА НОВОГО ЗДАНИЯ (КРАСНАЯ РАМКА) --- */
+/* --- КРАСНАЯ РАМКА ПОСТРОЙКИ --- */
 .square.just-built {
     box-shadow: inset 0 0 15px #c0392b, 0 0 20px rgba(231, 76, 60, 0.6);
     border: 2px solid #e74c3c;
@@ -398,7 +409,7 @@ button:active { transform: scale(0.96); }
 .glitch-shred::before { animation: shred-tear 2.0s reverse forwards; transform: translateX(3px); clip-path: polygon(0 0, 100% 0, 100% 45%, 0 45%); }
 .glitch-shred::after { animation: shred-tear 2.2s reverse forwards; transform: translateX(-3px); clip-path: polygon(0 55%, 100% 55%, 100% 100%, 0 100%); }
 
-/* ЩИТ HP/БРОНИ (Вместо полосок) */
+/* ЩИТ HP/БРОНИ */
 .shield-badge {
     position: absolute; bottom: -2px; left: -2px;
     background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%233498db"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>') no-repeat center;
@@ -411,14 +422,17 @@ button:active { transform: scale(0.96); }
     z-index: 100;
 }
 
+/* 3D СТИЛЬ ДЛЯ ЗДАНИЙ */
 .special-piece { 
-    font-size: calc(var(--sq-size) * 0.65); 
-    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.8)); 
+    font-size: calc(var(--sq-size) * 0.7); 
+    filter: drop-shadow(0 5px 2px rgba(0,0,0,0.6)); /* Тень снизу для объема */
     pointer-events: none; z-index: 11; display: flex; justify-content: center; align-items: center;
     position: relative; transition: font-size 0.3s;
+    /* Легкий наклон для псевдо-3D эффекта, если нужно, но эмодзи плоские */
+    transform: translateY(-2px); 
 }
 
-/* --- SLASH EFFECT (АПОГЕЙ) --- */
+/* --- SLASH EFFECT --- */
 #slash-overlay {
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
     pointer-events: none; z-index: 99999; display: none;
@@ -438,7 +452,7 @@ button:active { transform: scale(0.96); }
 @keyframes slashExpand { 0% { width: 0; opacity: 1; } 50% { width: 120%; opacity: 1; transform: rotate(-2deg); } 100% { width: 150%; opacity: 0; transform: rotate(-2deg); } }
 @keyframes slashFlash { 0% { opacity: 0.8; } 100% { opacity: 0; } }
 
-/* MODALS */
+/* MODALS и прочее без изменений */
 .modal-overlay {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
     background: rgba(0,0,0,0.85); z-index: 2000;
@@ -474,7 +488,6 @@ button:active { transform: scale(0.96); }
 .hidden { display: none !important; opacity: 0; pointer-events: none; }
 .hidden-btn { display: none !important; }
 
-/* --- TOAST --- */
 #game-toast {
     visibility: hidden; min-width: 250px; background-color: rgba(20, 20, 20, 0.95);
     color: #fff; text-align: center; border-radius: 12px; padding: 16px;
@@ -484,7 +497,6 @@ button:active { transform: scale(0.96); }
 }
 #game-toast.show { visibility: visible; opacity: 1; bottom: 110px; }
 
-/* --- ПОДКЛЮЧЕНИЕ --- */
 #connection-overlay {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
     background: #000; z-index: 3000; display: flex; justify-content: center; align-items: center;
@@ -533,13 +545,11 @@ input:focus { border-color: var(--accent); box-shadow: 0 0 15px rgba(241, 196, 1
 .btn-join { background: var(--accent); color: #000; border: 2px solid var(--accent); }
 .btn-join:hover { background: #fff; border-color: #fff; box-shadow: 0 0 20px rgba(255,255,255, 0.4); }
 
-/* --- ИГРОВОЙ ПРОЦЕСС --- */
-
 .square.legal-move:not(.enemy-target)::after {
     content: ""; position: absolute; width: 30%; height: 30%;
-    background: #00ff00; /* Неоновый зеленый */
+    background: #00ff00; 
     border-radius: 50%;
-    box-shadow: 0 0 15px #00ff00; /* Свечение */
+    box-shadow: 0 0 15px #00ff00; 
     z-index: 15;
     animation: pulseGreen 1.5s infinite;
 }

@@ -69,7 +69,8 @@ export function handleData(d) {
         gameState.board[d.r][d.c] = null;
     } else if (d.type === 'apogee_trigger') {
         playSlashAnimation();
-        setTimeout(() => triggerExpansion(), 600);
+        // Задержка перед расширением, чтобы проигралась анимация разреза
+        setTimeout(() => triggerExpansion(), 700);
     }
     
     if (d.isLast) {
@@ -317,32 +318,32 @@ export function activateApogee() {
     if (gameState.isExpanded) return;
     playSlashAnimation();
     sendNetworkMessage({ type: 'apogee_trigger' });
-    setTimeout(() => triggerExpansion(), 600);
+    setTimeout(() => triggerExpansion(), 700);
 }
 
 function triggerExpansion() {
     if (gameState.isExpanded) return;
     const newState = Array(16).fill(null).map(() => Array(8).fill(null));
     
+    // Перенос фигур (без изменений)
     for(let r=0; r<8; r++) {
         for(let c=0; c<8; c++) {
             const p = gameState.board[r][c];
             if (p) {
                 const isBuilding = BUILDINGS.includes(p.type);
-
                 if (r < 4) {
                     if (p.color === 'w' && !isBuilding) {
                         p.glitched = true; 
                         newState[r + 8][c] = p; 
                     } else {
-                        newState[r][c] = p;
+                        newState[r][c] = p; 
                     }
                 } else {
                     if (p.color === 'b' && !isBuilding) {
                         p.glitched = true; 
                         newState[r][c] = p; 
                     } else {
-                        newState[r + 8][c] = p;
+                        newState[r + 8][c] = p; 
                     }
                 }
             }
@@ -359,21 +360,28 @@ function triggerExpansion() {
     updateUI();
 
     const boardEl = document.getElementById('board');
+    
+    // !!! ВАЖНО: Включаем режим анимации (мягкая сетка)
+    boardEl.classList.add('animating-board');
+
     const fogSquares = Array.from(boardEl.querySelectorAll('.fog'));
     
+    // Схлопываем туман
     fogSquares.forEach(sq => {
         sq.classList.add('collapsed'); 
         sq.classList.add('fog-waiting'); 
     });
 
-    void boardEl.offsetWidth; 
+    void boardEl.offsetWidth; // Reflow
 
+    // Запускаем анимацию раздвигания
     setTimeout(() => {
         fogSquares.forEach(sq => {
             sq.classList.remove('collapsed'); 
         });
-    }, 50);
+    }, 100);
 
+    // Анимация тумана внутри
     setTimeout(() => {
         const renderRows = gameState.playerColor === 'b' ? [...Array(16).keys()].reverse() : [...Array(16).keys()];
         const allSquares = Array.from(boardEl.children);
@@ -392,8 +400,9 @@ function triggerExpansion() {
                 domIndex++;
             }
         });
-    }, 1800); 
+    }, 1600);
     
+    // Глитч эффект
     const renderRowsForGlitch = gameState.playerColor === 'b' ? [...Array(16).keys()].reverse() : [...Array(16).keys()];
     let sqIdx = 0;
     const allSquares = Array.from(boardEl.children);
@@ -406,7 +415,7 @@ function triggerExpansion() {
                 if (pieceEl) {
                     pieceEl.classList.add('glitch-shred');
                     setTimeout(() => {
-                        pieceEl.classList.remove('glitch-shred');
+                        if(pieceEl) pieceEl.classList.remove('glitch-shred');
                         p.glitched = false; 
                     }, 2500);
                 }
@@ -415,7 +424,12 @@ function triggerExpansion() {
         }
     });
 
-    setTimeout(() => { gameState.expansionAnimationDone = true; }, 2500);
+    // !!! ВАЖНО: Когда анимация точно закончилась (2s CSS transition + запас),
+    // убираем класс, чтобы сетка стала "железобетонной"
+    setTimeout(() => { 
+        gameState.expansionAnimationDone = true; 
+        boardEl.classList.remove('animating-board');
+    }, 2200);
 }
 
 export function recruitPawn() {
@@ -512,17 +526,36 @@ export function isValidMove(fr, fc, tr, tc) {
     const isKnight = baseType === 'n';
 
     if (gameState.isExpanded) {
+        // Определение зон: 1 = Верх (0-3), 2 = Низ (12-15), 0 = Туман (4-11)
         const startBase = (fr < 4) ? 1 : (fr > 11 ? 2 : 0);
         const endBase = (tr < 4) ? 1 : (tr > 11 ? 2 : 0);
         
+        // 1. Полный запрет перелета из Базы в Базу (минуя туман)
+        // Например: с 3 ряда на 12.
         if (startBase !== 0 && endBase !== 0 && startBase !== endBase) {
             return false;
         }
 
-        if (startFog !== endFog && !isKnight) {
-            const isBorderLanding = (tr === 3 || tr === 4 || tr === 11 || tr === 12);
-            if (!isBorderLanding) {
-                return false;
+        // 2. Строгая проверка ВХОДА и ВЫХОДА из тумана (для всех кроме Коня)
+        if (!isKnight) {
+            // Если идем СВЕРХУ (База 1) В туман -> Цель обязана быть рядом 4
+            if (startBase === 1 && endBase === 0) {
+                if (tr !== 4) return false;
+            }
+
+            // Если идем СНИЗУ (База 2) В туман -> Цель обязана быть рядом 11
+            if (startBase === 2 && endBase === 0) {
+                if (tr !== 11) return false;
+            }
+
+            // Если ВЫХОДИМ из тумана ВВЕРХ -> Цель обязана быть рядом 3
+            if (startBase === 0 && endBase === 1) {
+                if (tr !== 3) return false;
+            }
+
+            // Если ВЫХОДИМ из тумана ВНИЗ -> Цель обязана быть рядом 12
+            if (startBase === 0 && endBase === 2) {
+                if (tr !== 12) return false;
             }
         }
     }
@@ -536,10 +569,6 @@ export function isValidMove(fr, fc, tr, tc) {
     const dr = tr - fr, dc = tc - fc; 
     const adr = Math.abs(dr), adc = Math.abs(dc);
 
-    if (['b','r','q'].includes(baseType)) {
-        if (!isPathClear(fr, fc, tr, tc)) return false;
-    }
-
     switch(baseType) {
         case 'p':
             const dir = p.color === 'w' ? -1 : 1;
@@ -550,10 +579,21 @@ export function isValidMove(fr, fc, tr, tc) {
             }
             if (adc === 1 && dr === dir && dest && dest.color !== p.color) return true;
             return false;
+            
         case 'n': return (adr === 2 && adc === 1) || (adr === 1 && adc === 2);
-        case 'b': return adr === adc; 
-        case 'r': return (dr === 0 || dc === 0); 
-        case 'q': return (adr === adc || dr === 0 || dc === 0); 
+        
+        case 'b': 
+            if (adr !== adc) return false;
+            return isPathClear(fr, fc, tr, tc);
+            
+        case 'r': 
+            if (dr !== 0 && dc !== 0) return false;
+            return isPathClear(fr, fc, tr, tc);
+            
+        case 'q': 
+            if (!(adr === adc || dr === 0 || dc === 0)) return false;
+            return isPathClear(fr, fc, tr, tc);
+            
         case 'k': return (adr <= 1 && adc <= 1); 
     }
     return false;
@@ -578,34 +618,43 @@ export function movePiece(fr, fc, tr, tc) {
         return;
     }
 
-    gameState.board[fr][fc] = null;
-
+    // ЛОГИКА АТАКИ ПОСТРОЕК С ЗАЩИТОЙ
     if (dest && dest.color !== piece.color) {
-        if (dest.type.startsWith('fortress') || dest.type === 'barricade') {
-            if (dest.hp > 1) {
-                dest.hp--;
-                gameState.board[fr][fc] = piece;
-                piece.movedThisTurn = true; 
-                gameState.actionsLeft--;
-                sendNetworkMessage({ type: 'attack_hit', r: tr, c: tc, hp: dest.hp, isLast: (gameState.actionsLeft<=0) });
-                if(gameState.actionsLeft <= 0) showTurnBanner(false);
-                gameState.selectedPiece = null;
-                updateUI(); render();
-                return;
+        // Проверяем HP (стены, баррикады)
+        if (dest.hp !== undefined && dest.hp > 0) {
+            dest.hp--; // Снимаем 1 ед. защиты
+            
+            // Фигура тратит действие, но ОСТАЕТСЯ НА МЕСТЕ
+            if (piece.type !== 'p' || piece.rank !== 2) { // Если не элитная, тратим ход (упростим: атака всегда тратит ход)
+                 piece.movedThisTurn = true; 
             }
-        }
-        if (dest.armor > 0) {
-            dest.armor--;
-            gameState.board[fr][fc] = piece;
-            piece.movedThisTurn = true;
+            
             gameState.actionsLeft--;
-            sendNetworkMessage({ type: 'attack_armor', r: tr, c: tc, armor: dest.armor, isLast: (gameState.actionsLeft<=0) });
+            sendNetworkMessage({ type: 'attack_hit', r: tr, c: tc, hp: dest.hp, isLast: (gameState.actionsLeft<=0) });
+            
             if(gameState.actionsLeft <= 0) showTurnBanner(false);
             gameState.selectedPiece = null;
             updateUI(); render();
-            return;
+            return; // ПРЕРЫВАЕМ ФУНКЦИЮ, ПЕРЕМЕЩЕНИЯ НЕ ПРОИСХОДИТ
+        }
+
+        // Проверяем ARMOR (КЦ/Штабы)
+        if (dest.armor !== undefined && dest.armor > 0) {
+            dest.armor--; // Снимаем 1 ед. брони
+            
+            piece.movedThisTurn = true;
+            gameState.actionsLeft--;
+            sendNetworkMessage({ type: 'attack_armor', r: tr, c: tc, armor: dest.armor, isLast: (gameState.actionsLeft<=0) });
+            
+            if(gameState.actionsLeft <= 0) showTurnBanner(false);
+            gameState.selectedPiece = null;
+            updateUI(); render();
+            return; // ПРЕРЫВАЕМ ФУНКЦИЮ, ПЕРЕМЕЩЕНИЯ НЕ ПРОИСХОДИТ
         }
     }
+    
+    // Если защиты нет (или это обычная фигура), код идет дальше и происходит захват
+    gameState.board[fr][fc] = null;
 
     let isWinMove = (dest && dest.type === 'k');
     if (isWinMove) endGame(true);
@@ -695,5 +744,12 @@ export function onSidebarPointerDown(e, type) {
     if (gameState.gameOver || !gameState.currentRoom || gameState.actionsLeft <= 0 || !gameState.isBuildMode) return;
     dragState.isBuildingDrag = true;
     dragState.from = { type: type };
-    initDrag(e, null, BUILDING_ICONS[type] || BUILDING_ICONS[type.replace('_t2','').replace('_t3','').replace('_t4','')]);
+    // Получаем иконку для драга
+    let icon = BUILDING_ICONS[type];
+    if (!icon) {
+        // Попытка найти базовый тип
+        const base = type.replace('_t2','').replace('_t3','').replace('_t4','');
+        icon = BUILDING_ICONS[base];
+    }
+    initDrag(e, null, icon);
 }

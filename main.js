@@ -2,16 +2,16 @@ import { initNetwork, createGame, joinGame, sendNetworkMessage } from './network
 import { gameState } from './state.js';
 import { initBackground } from './background.js';
 import { recalcBoard, updateUI, render, closeModal, showToast, showPromotionModal } from './ui.js';
-import { onSidebarPointerDown, activateApogee, recruitPawn, useForge, finishPromotion } from './game.js';
+import { onSidebarPointerDown, activateApogee, recruitPawn, finishPromotion } from './game.js';
 
-// --- Global Assignments for HTML onclick access ---
+// --- Глобальные функции для доступа из HTML ---
 window.createGame = createGame;
 window.joinGame = joinGame;
 window.sendNetworkMessage = sendNetworkMessage;
 window.closeModal = closeModal;
 window.activateApogee = activateApogee;
 window.recruitPawn = recruitPawn;
-window.useForge = useForge;
+// window.useForge удалено, так как кузня удалена
 window.onSidebarPointerDown = onSidebarPointerDown;
 window.finishPromotion = finishPromotion;
 
@@ -28,7 +28,7 @@ window.switchTab = function(tab) {
     document.querySelector(`.group-${tab}`).classList.add('active');
 }
 
-// --- Init Logic ---
+// --- Инициализация ---
 window.addEventListener('resize', recalcBoard);
 window.addEventListener('load', () => {
     initNetwork();
@@ -36,7 +36,7 @@ window.addEventListener('load', () => {
     recalcBoard();
 });
 
-// --- Gestures ---
+// --- Жесты (свайпы) ---
 (function initGestures() {
     let touchStartY = 0;
     let touchEndY = 0;
@@ -79,7 +79,7 @@ window.addEventListener('load', () => {
     }
 })();
 
-// Tooltip logic
+// Подсказки (Tooltip)
 const tooltipEl = document.getElementById('ui-tooltip');
 document.querySelectorAll('.build-item').forEach(item => {
     item.addEventListener('mouseenter', e => showTooltip(e, item));

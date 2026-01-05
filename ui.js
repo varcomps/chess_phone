@@ -9,12 +9,13 @@ export const dragState = {
 
 export function showToast(msg) {
     const t = document.getElementById('game-toast');
-    t.innerText = msg;
-    t.className = "show";
-    setTimeout(() => { t.className = t.className.replace("show", ""); }, 3000);
+    if(t) {
+        t.innerText = msg;
+        t.className = "show";
+        setTimeout(() => { t.className = t.className.replace("show", ""); }, 3000);
+    }
 }
 
-// Баннер смены хода
 export function showTurnBanner(isMyTurn) {
     const banner = document.getElementById('turn-banner');
     if (!banner) return;
@@ -26,7 +27,6 @@ export function showTurnBanner(isMyTurn) {
     }, 1500);
 }
 
-// Анимация разреза (Апогей)
 export function playSlashAnimation() {
     const overlay = document.getElementById('slash-overlay');
     if(overlay) {
@@ -42,7 +42,6 @@ export function isFog(r, c) {
     return (r >= 4 && r <= 11);
 }
 
-// Проверка на элитность теперь смотрит и на ранг
 export function isUpgradedUnit(piece) { 
     return piece && (piece.rank === 2 || piece.type.endsWith('_2')); 
 }
@@ -56,7 +55,7 @@ export function recalcBoard() {
 
     if (window.innerWidth <= 768) {
         if (gameState.isBuildMode) {
-            const menuH = buildMenu.offsetHeight || (window.innerHeight * 0.38); 
+            const menuH = buildMenu ? buildMenu.offsetHeight : (window.innerHeight * 0.38); 
             safeBottom = menuH + 10; 
         } else {
             safeBottom = 60; 
@@ -73,12 +72,16 @@ export function recalcBoard() {
 
     document.documentElement.style.setProperty('--sq-size', sqSize + 'px');
     const wrapper = document.getElementById('board-wrapper');
-    wrapper.style.paddingTop = safeTop + 'px';
-    wrapper.style.paddingBottom = safeBottom + 'px';
+    if(wrapper) {
+        wrapper.style.paddingTop = safeTop + 'px';
+        wrapper.style.paddingBottom = safeBottom + 'px';
+    }
 }
 
 export function render() {
     const boardEl = document.getElementById('board');
+    if(!boardEl) return;
+    
     boardEl.innerHTML = '';
     document.documentElement.style.setProperty('--rows', gameState.rows);
     document.documentElement.style.setProperty('--cols', gameState.cols);
@@ -93,18 +96,16 @@ export function render() {
             let isDark = (r + c) % 2 !== 0;
             square.className = `square ${isDark ? 'dark' : 'light'}`;
             
-            // Логика Тумана
             if (isFog(r, c)) {
                 square.classList.add('fog');
+                square.classList.add(isDark ? 'dark' : 'light'); 
             }
             
-            // Красная подсветка постройки противника
             if (gameState.lastOpponentMove && gameState.lastOpponentMove.type === 'build' &&
                 gameState.lastOpponentMove.r === r && gameState.lastOpponentMove.c === c) {
                 square.classList.add('just-built');
             }
             
-            // Подсветка ходов
             if (gameState.selectedPiece) {
                 if (isValidMove(gameState.selectedPiece.r, gameState.selectedPiece.c, r, c)) {
                     square.classList.add('legal-move');
@@ -117,7 +118,6 @@ export function render() {
                 }
             }
             
-            // Анимация роста доски
             if (gameState.isExpanded && r >= 4 && r < 12 && !gameState.expansionAnimationDone) { 
                 square.classList.add('growing');
                 const dist = Math.abs(r - 7.5) + Math.abs(c - 3.5);
@@ -129,7 +129,6 @@ export function render() {
                 const pDiv = document.createElement('div');
                 
                 if (BUILDINGS.includes(p.type)) {
-                    // ЗДАНИЯ
                     pDiv.className = 'special-piece';
                     if (T2_BUILDINGS.includes(p.type)) pDiv.classList.add('t2-building');
                     if (T3_BUILDINGS.includes(p.type)) pDiv.classList.add('t3-building');
@@ -137,10 +136,9 @@ export function render() {
                     if (p.type === 'house') pDiv.classList.add('settlement');
                     pDiv.innerHTML = BUILDING_ICONS[p.type] || '?';
                     
-                    // ЩИТ (HP для стен, Броня для КЦ)
                     let shieldVal = 0;
-                    if (p.hp !== undefined) shieldVal = p.hp; // Стены
-                    if (p.armor !== undefined) shieldVal = p.armor; // КЦ или другие здания с броней
+                    if (p.hp !== undefined) shieldVal = p.hp;
+                    if (p.armor !== undefined) shieldVal = p.armor;
                     
                     if (shieldVal > 0) {
                         const badge = document.createElement('div');
@@ -149,13 +147,12 @@ export function render() {
                         pDiv.appendChild(badge);
                     }
                     square.appendChild(pDiv);
-                } else {
-                    // ЮНИТЫ
+                } 
+                else {
                     pDiv.className = 'piece';
                     const baseType = p.type.replace('_2', '');
                     pDiv.style.backgroundImage = `url(${PIECE_URLS[p.color + baseType]})`;
                     
-                    // ЗОЛОТАЯ ОБВОДКА (ELITE)
                     if (isUpgradedUnit(p)) {
                         pDiv.classList.add('upgraded');
                         pDiv.classList.add('elite-unit'); 
@@ -163,7 +160,6 @@ export function render() {
                     
                     if (p.movedThisTurn) pDiv.classList.add('exhausted');
 
-                    // ЩИТ ДЛЯ ЮНИТОВ
                     if (p.armor > 0) {
                         const badge = document.createElement('div');
                         badge.className = 'shield-badge';
@@ -194,12 +190,10 @@ export function render() {
         });
     });
     
-    // Рисуем стрелку только если это НЕ стройка (стройка имеет красную рамку)
     if (gameState.lastOpponentMove && gameState.lastOpponentMove.type !== 'build') {
         drawArrow(boardEl, gameState.lastOpponentMove);
     }
 
-    // ОБНОВЛЕНИЕ РЕСУРСОВ
     const els = {
         wood: document.getElementById('res-wood-val'),
         stone: document.getElementById('res-stone-val'),
@@ -218,7 +212,6 @@ export function render() {
 
     for (let k in els) {
         if(els[k]) {
-            // FIX: Защита от undefined
             els[k].innerText = gameState.myResources[k] || 0;
             const limitSpan = els[k].nextSibling;
             if (limitSpan && limitSpan.nodeType === Node.TEXT_NODE) {
@@ -236,7 +229,6 @@ export function render() {
     }
 }
 
-// --- УМЕНЬШЕННЫЙ ТРЕУГОЛЬНИК (СТРЕЛКА) ---
 function drawArrow(boardEl, move) {
     const sqSize = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sq-size'));
     const isWhite = gameState.playerColor === 'w';
@@ -322,32 +314,38 @@ export function updateUI() {
     const hasHQ3 = hasSpecial(gameState.playerColor, 'hq_t3');
     const hasHQ4 = hasSpecial(gameState.playerColor, 'hq_t4');
     
-    // Любой КЦ считается
     const isAlive = hasHQ || hasHQ2 || hasHQ3 || hasHQ4;
 
-    if (gameState.actionsLeft > 0) statusEl.textContent = isAlive ? `ТВОЙ ХОД (${gameState.actionsLeft} ОД)` : "ТВОЙ ХОД";
-    else statusEl.textContent = "ХОД ПРОТИВНИКА...";
+    if (statusEl) {
+        if (gameState.actionsLeft > 0) statusEl.textContent = isAlive ? `ТВОЙ ХОД (${gameState.actionsLeft} ОД)` : "ТВОЙ ХОД";
+        else statusEl.textContent = "ХОД ПРОТИВНИКА...";
+    }
     
     if (gameState.isBuildMode) document.body.classList.add('build-mode');
     else document.body.classList.remove('build-mode');
     
-    // Скрываем кнопку постройки КЦ, если он уже есть (любого уровня)
-    document.getElementById('btn-build-hq').classList.toggle('hidden-btn', isAlive);
+    // УДАЛЕНО: Скрытие кнопки КЦ
+    // const btnHQ = document.getElementById('btn-build-hq');
+    // if(btnHQ) btnHQ.classList.toggle('hidden-btn', isAlive);
     
     const btnApogee = document.getElementById('btn-apogee');
-    if (gameState.isExpanded) {
-        btnApogee.style.display = 'none';
-    } else {
-        btnApogee.style.display = gameState.isBuildMode ? 'block' : 'none';
+    if (btnApogee) {
+        if (gameState.isExpanded) {
+            btnApogee.style.display = 'none';
+        } else {
+            btnApogee.style.display = gameState.isBuildMode ? 'block' : 'none';
+        }
     }
     
     const btnCamp = document.getElementById('btn-camp-recruit');
     const hasCamp = hasSpecial(gameState.playerColor, 'camp');
-    if (hasCamp && gameState.isBuildMode) {
-        btnCamp.style.display = 'block';
-        btnCamp.classList.add('fade-btn');
-    } else {
-        btnCamp.style.display = 'none';
+    if (btnCamp) {
+        if (hasCamp && gameState.isBuildMode) {
+            btnCamp.style.display = 'block';
+            btnCamp.classList.add('fade-btn');
+        } else {
+            btnCamp.style.display = 'none';
+        }
     }
 
     updateBuildingCounters();
@@ -414,7 +412,6 @@ export function endGame(isWin) {
     modal.classList.remove('hidden');
 }
 
-// Drag & Drop Logic
 export function initDrag(e, bgImage, icon) {
     dragState.pointerId = e.pointerId;
     dragState.startX = e.clientX; dragState.startY = e.clientY;

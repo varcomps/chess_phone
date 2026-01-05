@@ -13,26 +13,64 @@ export const PIECE_URLS = {
     bp: 'https://upload.wikimedia.org/wikipedia/commons/c/c7/Chess_pdt45.svg'
 };
 
-export const BUILDINGS = ['hq', 'hq_t2', 'hq_t3', 'hq_t4', 'camp', 'academy', 'academy_t2', 'lumber', 'lumber_t2', 'lumber_t3', 'lumber_t4', 'mine', 'mine_t2', 'mine_t3', 'mine_t4', 'papermill', 'papermill_t2', 'farm', 'house', 'fortress', 'fortress_t2', 'fortress_t3', 'furnace', 'barricade', 'warehouse'];
+export const BUILDINGS = [
+    'hq', 'hq_t2', 'hq_t3', 'hq_t4', 
+    'camp', 'academy', 'academy_t2', 
+    'lumber', 'lumber_t2', 'lumber_t3', 'lumber_t4', 
+    'mine', 'mine_t2', 'mine_t3', 'mine_t4', 
+    'papermill', 'papermill_t2', 
+    'farm', 'house', 
+    'fortress', 'fortress_t2', 'fortress_t3', 
+    'furnace', 'barricade', 'warehouse'
+];
+
 export const T2_BUILDINGS = ['academy', 'lumber_t2', 'mine_t2', 'fortress_t2', 'furnace', 'warehouse', 'papermill_t2', 'hq_t2'];
 export const T3_BUILDINGS = ['lumber_t3', 'mine_t3', 'fortress_t3', 'academy_t2', 'hq_t3']; 
 export const T4_BUILDINGS = ['lumber_t4', 'mine_t4', 'hq_t4'];
 
-// НОВЫЕ ИКОНКИ
+// УНИКАЛЬНЫЕ ИКОНКИ ДЛЯ ВСЕХ ТИРОВ
 export const BUILDING_ICONS = { 
-    hq: '🏰', hq_t2: '🏯', hq_t3: '🏟️', hq_t4: '🛰️',
-    camp: '⛺', 
-    academy: '🎓', academy_t2: '🏛️', 
-    lumber: '🪓', lumber_t2: '🌲', lumber_t3: '🧬', lumber_t4: '☢️',
-    mine: '⛏️', mine_t2: '🏗️', mine_t3: '💎', mine_t4: '⚛️',
-    papermill: '🏭', papermill_t2: '🖨️', farm: '🥩',
-    house: '🏠', demolish: '🧨',
-    fortress: '🧱', fortress_t2: '🛡️', fortress_t3: '🏯',
-    furnace: '🔥',
-    barricade: '🚧', warehouse: '📦'
+    // ШТАБЫ
+    hq: '🏰',        // T1: Замок
+    hq_t2: '🏯',     // T2: Крепость
+    hq_t3: '🏙️',     // T3: Мегаполис/Бункер
+    hq_t4: '🛰️',     // T4: Орбитал
+
+    // ВОЙСКА
+    camp: '⛺',       // T1: Палатка
+    academy: '🎖️',    // T2: Медаль/Плац (был 🎓)
+    academy_t2: '🏛️', // T3: Пантеон
+
+    // ЛЕС (Дерево -> Кедр -> Полимер -> Хим)
+    lumber: '🪓',      // T1
+    lumber_t2: '🌲',   // T2
+    lumber_t3: '🧪',   // T3 (Полимеры - пробирка)
+    lumber_t4: '☣️',   // T4 (Химия - знак биоопасности)
+
+    // ШАХТА (Камень -> Металл -> Алмаз -> Уран)
+    mine: '⛏️',       // T1
+    mine_t2: '🏗️',     // T2
+    mine_t3: '💎',     // T3
+    mine_t4: '⚛️',     // T4
+
+    // ПРОИЗВОДСТВО
+    papermill: '📜',    // T1: Свиток
+    papermill_t2: '🖨️', // T2: Принтер
+    furnace: '🔥',      // Плавильня
+    warehouse: '📦',    // Склад
+    farm: '🚜',         // Ферма (Трактор лучше, чем мясо)
+    house: '🏠',        // Домв
+
+    // ЗАЩИТА
+    barricade: '🚧',    // Баррикада
+    fortress: '🧱',     // T1: Кирпичная стена
+    fortress_t2: '🗼',  // T2: Башня (отличается от HQ)
+    fortress_t3: '🛡️',  // T3: Энергощит
+
+    // УТИЛИТЫ
+    demolish: '🧨'
 };
 
-// ЦЕНЫ (HQ обновлены)
 export const BUILDING_COSTS = {
     hq: { wood: 4, stone: 4, metal: 0, cedar: 0, paper: 0, food: 0, gem: 0, coal: 0, polymer: 0, uranium: 0, chemical: 0 },
     camp: { wood: 3, stone: 0, metal: 0, cedar: 0, paper: 0, food: 0, gem: 0, coal: 0, polymer: 0, uranium: 0, chemical: 0 },
@@ -68,5 +106,4 @@ export const BUILDING_COSTS = {
 };
 
 export const BUILDING_LIMITS = { hq: 1, hq_t2: 1, hq_t3: 1, hq_t4: 1, camp: 1, academy: 1, academy_t2: 1, papermill: 1, papermill_t2: 1, lumber: 1, mine: 1, farm: 1, fortress: 4, furnace: 1, barricade: 6, warehouse: 1 };
-export const FORTRESS_HP = { fortress: 2, fortress_t2: 4, fortress_t3: 8, barricade: 1, hq_t2: 1, hq_t3: 2, hq_t4: 3 }; 
-// Примечание: hq_tX используют HP как защиту (броню) в коде отображения
+export const FORTRESS_HP = { fortress: 2, fortress_t2: 4, fortress_t3: 8, barricade: 1, hq_t2: 1, hq_t3: 2, hq_t4: 3 };
