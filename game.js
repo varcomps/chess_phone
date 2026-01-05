@@ -20,7 +20,10 @@ export function initBoard() {
 export function handleData(d) {
     const oppColor = (gameState.playerColor === 'w' ? 'b' : 'w');
     if (d.type === 'move') {
-        gameState.lastOpponentMove = { from: d.from, to: d.to };
+        const targetPiece = gameState.board[d.to.r][d.to.c];
+        const isCapture = targetPiece && (targetPiece.color === gameState.playerColor || BUILDINGS.includes(targetPiece.type));
+        
+        gameState.lastOpponentMove = { from: d.from, to: d.to, isCapture: isCapture };
 
         let movingPiece = gameState.board[d.from.r][d.from.c];
         if (!movingPiece) movingPiece = { type: 'p', color: oppColor }; 
@@ -38,8 +41,10 @@ export function handleData(d) {
         if (d.win) endGame(false);
     } else if (d.type === 'attack_hit') {
         if (gameState.board[d.r][d.c]) gameState.board[d.r][d.c].hp = d.hp;
+        gameState.lastOpponentMove = { from: d.from || {r:d.r, c:d.c}, to: {r:d.r, c:d.c}, isCapture: true }; 
     } else if (d.type === 'attack_armor') {
         if (gameState.board[d.r][d.c]) gameState.board[d.r][d.c].armor = d.armor;
+        gameState.lastOpponentMove = { from: d.from || {r:d.r, c:d.c}, to: {r:d.r, c:d.c}, isCapture: true };
     } else if (d.type === 'forge_armor') {
         if (gameState.board[d.r][d.c]) gameState.board[d.r][d.c].armor = (gameState.board[d.r][d.c].armor || 0) + 1;
     } else if (d.type === 'transform') {
@@ -142,10 +147,6 @@ export function buildSomething(r, c, type) {
     }
 
     const costs = BUILDING_COSTS[type];
-    
-    // --- ЛОГИКА АПГРЕЙДОВ ---
-    // 'academy' больше НЕ считается апгрейдом, это самостоятельное здание.
-    // 'academy_t2' (Университет) - это апгрейд для 'academy'.
     const isUpgrade = type.endsWith('_t2') || type.endsWith('_t3');
 
     if (isUpgrade) {
@@ -153,7 +154,7 @@ export function buildSomething(r, c, type) {
         let requiredType = '';
         
         if (type === 'academy_t2') { 
-            requiredType = 'academy'; // Апгрейд обычной академии
+            requiredType = 'academy'; 
         } else if (type.endsWith('_t2')) {
             baseType = type.replace('_t2', '');
             requiredType = baseType; 
@@ -181,7 +182,6 @@ export function buildSomething(r, c, type) {
         return;
     }
 
-    // --- ЛОГИКА НОВЫХ ПОСТРОЕК ---
     if (gameState.board[r][c]) return; 
     if (gameState.actionsLeft < apCost) return showToast(`НУЖНО ${apCost} ОД.`);
     
@@ -202,7 +202,8 @@ export function buildSomething(r, c, type) {
     updateUI(); render(); 
 }
 
-function getBuildingCount(baseType) {
+// ДОБАВЛЕН EXPORT
+export function getBuildingCount(baseType) {
     let count = 0;
     gameState.board.flat().forEach(p => {
         if (p && p.color === gameState.playerColor) {
@@ -444,11 +445,7 @@ export function isValidMove(fr, fc, tr, tc) {
             return false;
         }
 
-        // --- ЛОГИКА ТУМАНА ---
         if (startFog !== endFog && !isKnight) {
-            // Разрешаем пересекать границу с любого расстояния, НО
-            // приземлиться можно только на самую первую клетку за границей.
-            // Границы тумана: между рядами 3-4 и 11-12.
             const isBorderLanding = (tr === 3 || tr === 4 || tr === 11 || tr === 12);
             if (!isBorderLanding) {
                 return false;
@@ -601,11 +598,9 @@ export function isNearOwnPiece(r, c, type) {
                     
                     const neighborIsBuilding = BUILDINGS.includes(neighbor.type) || neighbor.type === 'forge';
 
-                    // --- ПРАВИЛО: СТЕНЫ МОЖНО СТРОИТЬ РЯДОМ С ЧЕМ УГОДНО (Юниты или Здания) ---
                     if (type.startsWith('fortress')) {
                          if (targetIsFog === isFog(nr, nc)) return true;
                     } 
-                    // --- ПРАВИЛО: ОСТАЛЬНЫЕ ЗДАНИЯ ТОЛЬКО РЯДОМ С ЮНИТАМИ (НЕ ЗДАНИЯМИ) ---
                     else {
                         if (!neighborIsBuilding) {
                              if (targetIsFog === isFog(nr, nc)) return true;

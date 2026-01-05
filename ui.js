@@ -1,6 +1,6 @@
 import { gameState } from './state.js';
-import { PIECE_URLS, BUILDING_ICONS, BUILDINGS, T2_BUILDINGS, T3_BUILDINGS, FORTRESS_HP } from './constants.js';
-import { onPiecePointerDown, buildSomething, isNearOwnPiece, movePiece, isValidMove, finishAcademyRecruit } from './game.js';
+import { PIECE_URLS, BUILDING_ICONS, BUILDINGS, T2_BUILDINGS, T3_BUILDINGS, FORTRESS_HP, BUILDING_LIMITS } from './constants.js';
+import { onPiecePointerDown, buildSomething, isNearOwnPiece, movePiece, isValidMove, finishAcademyRecruit, getBuildingCount } from './game.js';
 
 export const dragState = {
     started: false, cloneEl: null, from: null, isBuildingDrag: false,
@@ -82,13 +82,6 @@ export function render() {
             square.className = `square ${isDark ? 'dark' : 'light'}`;
             if (isFog(r, c)) square.classList.add('fog');
             
-            // --- ПОДСВЕТКА ПОСЛЕДНЕГО ХОДА (РАМКИ) ---
-            if (gameState.lastOpponentMove) {
-                if (gameState.lastOpponentMove.from.r === r && gameState.lastOpponentMove.from.c === c) square.classList.add('last-move-src');
-                if (gameState.lastOpponentMove.to.r === r && gameState.lastOpponentMove.to.c === c) square.classList.add('last-move-dst');
-            }
-
-            // --- ПОДСВЕТКА ВОЗМОЖНЫХ ХОДОВ ---
             if (gameState.selectedPiece && !gameState.isBuildMode) {
                 if (isValidMove(gameState.selectedPiece.r, gameState.selectedPiece.c, r, c)) {
                     square.classList.add('legal-move');
@@ -177,6 +170,10 @@ export function render() {
             boardEl.appendChild(square);
         });
     });
+    
+    if (gameState.lastOpponentMove) {
+        drawArrow(boardEl, gameState.lastOpponentMove);
+    }
 
     forgeUI.style.display = forgeActive ? 'block' : 'none';
     
@@ -201,7 +198,96 @@ export function render() {
     }
 }
 
+// --- УМЕНЬШЕННЫЙ ТРЕУГОЛЬНИК ---
+function drawArrow(boardEl, move) {
+    const sqSize = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sq-size'));
+    const isWhite = gameState.playerColor === 'w';
+    
+    const getVisualPos = (r, c) => {
+        const visualRow = isWhite ? r : (gameState.rows - 1 - r);
+        const visualCol = c; 
+        
+        const x = visualCol * sqSize + sqSize / 2;
+        const y = visualRow * sqSize + sqSize / 2;
+        return {x, y};
+    };
+
+    const start = getVisualPos(move.from.r, move.from.c);
+    const end = getVisualPos(move.to.r, move.to.c);
+    
+    const color = move.isCapture ? '#e74c3c' : '#2ecc71'; 
+
+    const svgNS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("class", "arrow-overlay");
+    
+    const defs = document.createElementNS(svgNS, "defs");
+    const marker = document.createElementNS(svgNS, "marker");
+    marker.setAttribute("id", "arrowhead");
+    // Уменьшены размеры маркера (было 10 и 7)
+    marker.setAttribute("markerWidth", "6");
+    marker.setAttribute("markerHeight", "4");
+    marker.setAttribute("refX", "5"); 
+    marker.setAttribute("refY", "2"); // Половина высоты (4/2)
+    marker.setAttribute("orient", "auto");
+    
+    const polygon = document.createElementNS(svgNS, "polygon");
+    // Подгон полигона под новые размеры (0-4 высота, длина 6)
+    polygon.setAttribute("points", "0 0, 6 2, 0 4");
+    polygon.setAttribute("fill", color);
+    
+    marker.appendChild(polygon);
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+
+    const line = document.createElementNS(svgNS, "line");
+    line.setAttribute("x1", start.x);
+    line.setAttribute("y1", start.y);
+    line.setAttribute("x2", end.x);
+    line.setAttribute("y2", end.y);
+    line.setAttribute("stroke", color);
+    line.setAttribute("stroke-width", "8");
+    line.setAttribute("stroke-opacity", "0.6");
+    line.setAttribute("marker-end", "url(#arrowhead)");
+    
+    svg.appendChild(line);
+    boardEl.appendChild(svg);
+}
+
 export function hasSpecial(color, type) { return gameState.board.flat().some(p => p && p.type === type && p.color === color); }
+
+function updateBuildingCounters() {
+    if (!gameState.isBuildMode) return;
+    
+    document.querySelectorAll('.build-item').forEach(item => {
+        const type = item.getAttribute('data-type');
+        if (!type || type === 'demolish') return;
+        
+        // Определяем базовый тип для лимита (обрезаем _t2 / _t3)
+        // Если это апгрейд, он делит лимит с базовой постройкой
+        let baseType = type.replace('_t2', '').replace('_t3', '');
+        
+        // Исключения, если есть уникальные лимиты (например academy_t2 отдельное здание? Нет, лимит общий)
+        // Мы используем getBuildingCount(baseType), который считает все тиры
+        
+        const limit = BUILDING_LIMITS[baseType] || 99;
+        const count = getBuildingCount(baseType);
+        
+        // Ищем или создаем элемент счетчика
+        let counter = item.querySelector('.build-count');
+        if (!counter) {
+            counter = document.createElement('div');
+            counter.className = 'build-count';
+            item.appendChild(counter);
+        }
+        
+        counter.innerText = `${count}/${limit}`;
+        
+        // Визуальная индикация переполнения
+        if (count >= limit) counter.style.color = '#e74c3c';
+        else counter.style.color = '#fff';
+    });
+}
 
 export function updateUI() {
     const statusEl = document.getElementById('status');
@@ -228,6 +314,9 @@ export function updateUI() {
     } else {
         btnCamp.style.display = 'none';
     }
+
+    // Обновляем счетчики построек
+    updateBuildingCounters();
 }
 
 export function openAcademyModal(fr, fc, tr, tc, isT2) {
