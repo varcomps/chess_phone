@@ -8,7 +8,6 @@ export function initBoard() {
     gameState.board = Array(8).fill(null).map(() => Array(8).fill(null));
     const layout = ['r','n','b','q','k','b','n','r'];
     for(let i=0; i<8; i++) {
-        // movedThisTurn: false - добавлено
         gameState.board[0][i] = { type: layout[i], color: 'b', moved: false, armor: 0, movedThisTurn: false };
         gameState.board[1][i] = { type: 'p', color: 'b', moved: false, armor: 0, movedThisTurn: false };
         gameState.board[6][i] = { type: 'p', color: 'w', moved: false, armor: 0, movedThisTurn: false };
@@ -21,7 +20,6 @@ export function initBoard() {
 export function handleData(d) {
     const oppColor = (gameState.playerColor === 'w' ? 'b' : 'w');
     if (d.type === 'move') {
-        // --- СОХРАНЯЕМ ХОД ПРОТИВНИКА ДЛЯ ПОДСВЕТКИ ---
         gameState.lastOpponentMove = { from: d.from, to: d.to };
 
         let movingPiece = gameState.board[d.from.r][d.from.c];
@@ -61,15 +59,13 @@ export function handleData(d) {
         else gameState.board[d.r][d.c] = null;
     } else if (d.type === 'apogee_trigger') {
         playSlashAnimation();
-        setTimeout(() => triggerExpansion(), 600); // Wait for slash
+        setTimeout(() => triggerExpansion(), 600);
     }
     
-    // --- ПОКАЗЫВАЕМ БАННЕР "ТВОЙ ХОД" ЕСЛИ ХОД ПЕРЕДАН ---
     if (d.isLast) {
          turnEndLogic();
          showTurnBanner(true);
     } else if (d.type !== 'build' && d.type !== 'upgrade' && d.type !== 'demolish') {
-         // Противник походил, но ход не передал (если ОД были 2), можно показать промежуточный статус или просто обновить
          render();
     }
     
@@ -88,15 +84,12 @@ function playSlashAnimation() {
 
 export function turnEndLogic() {
     gameState.actionsLeft = hasSpecial(gameState.playerColor, 'hq') ? 2 : 1; 
-    
-    // --- СБРОС УСТАЛОСТИ ---
     gameState.board.flat().forEach(p => { 
         if (p) {
             p.freeMoveUsed = false; 
-            p.movedThisTurn = false; // Разрешаем ходить снова в новом ходу
+            p.movedThisTurn = false;
         }
     });
-    
     collectResources();
 }
 
@@ -150,14 +143,17 @@ export function buildSomething(r, c, type) {
 
     const costs = BUILDING_COSTS[type];
     
-    if (type.endsWith('_t2') || type.endsWith('_t3') || type === 'academy') {
+    // --- ЛОГИКА АПГРЕЙДОВ ---
+    // 'academy' больше НЕ считается апгрейдом, это самостоятельное здание.
+    // 'academy_t2' (Университет) - это апгрейд для 'academy'.
+    const isUpgrade = type.endsWith('_t2') || type.endsWith('_t3');
+
+    if (isUpgrade) {
         let baseType = '';
         let requiredType = '';
         
-        if (type === 'academy') {
-            requiredType = 'camp';
-        } else if (type === 'academy_t2') { 
-            requiredType = 'academy';
+        if (type === 'academy_t2') { 
+            requiredType = 'academy'; // Апгрейд обычной академии
         } else if (type.endsWith('_t2')) {
             baseType = type.replace('_t2', '');
             requiredType = baseType; 
@@ -185,6 +181,7 @@ export function buildSomething(r, c, type) {
         return;
     }
 
+    // --- ЛОГИКА НОВЫХ ПОСТРОЕК ---
     if (gameState.board[r][c]) return; 
     if (gameState.actionsLeft < apCost) return showToast(`НУЖНО ${apCost} ОД.`);
     
@@ -284,28 +281,22 @@ function triggerExpansion() {
     render(); 
     updateUI();
 
-    // 1. АНИМАЦИЯ РАЗЪЕЗДА
     const boardEl = document.getElementById('board');
     const fogSquares = Array.from(boardEl.querySelectorAll('.fog'));
     
-    // Сначала "схлопываем" туман (высота 0)
-    // Делаем это с отключенной анимацией, чтобы они мгновенно исчезли
     fogSquares.forEach(sq => {
-        sq.classList.add('collapsed'); // Применяет height: 0
-        sq.classList.add('fog-waiting'); // opacity: 0
+        sq.classList.add('collapsed'); 
+        sq.classList.add('fog-waiting'); 
     });
 
-    // Форсируем перерисовку браузером
     void boardEl.offsetWidth; 
 
-    // Запускаем разъезд
     setTimeout(() => {
         fogSquares.forEach(sq => {
-            sq.classList.remove('collapsed'); // Браузер анимирует height: 0 -> 40px
+            sq.classList.remove('collapsed'); 
         });
     }, 50);
 
-    // 2. ВОЛНА ПОЯВЛЕНИЯ КЛЕТОК (через 2 секунды)
     setTimeout(() => {
         const renderRows = gameState.playerColor === 'b' ? [...Array(16).keys()].reverse() : [...Array(16).keys()];
         const allSquares = Array.from(boardEl.children);
@@ -318,15 +309,14 @@ function triggerExpansion() {
                 if (sq.classList.contains('fog')) {
                     const dist = Math.sqrt(Math.pow(r - centerR, 2) + Math.pow(c - centerC, 2));
                     sq.style.animationDelay = `${dist * 0.08}s`;
-                    sq.classList.add('fog-anim'); // Запуск анимации
+                    sq.classList.add('fog-anim'); 
                     sq.classList.remove('fog-waiting');
                 }
                 domIndex++;
             }
         });
-    }, 1800); // Чуть раньше конца разъезда
+    }, 1800); 
     
-    // 3. GLITCH
     const renderRowsForGlitch = gameState.playerColor === 'b' ? [...Array(16).keys()].reverse() : [...Array(16).keys()];
     let sqIdx = 0;
     const allSquares = Array.from(boardEl.children);
@@ -454,8 +444,15 @@ export function isValidMove(fr, fc, tr, tc) {
             return false;
         }
 
+        // --- ЛОГИКА ТУМАНА ---
         if (startFog !== endFog && !isKnight) {
-            if (Math.abs(tr - fr) > 1 || Math.abs(tc - fc) > 1) return false;
+            // Разрешаем пересекать границу с любого расстояния, НО
+            // приземлиться можно только на самую первую клетку за границей.
+            // Границы тумана: между рядами 3-4 и 11-12.
+            const isBorderLanding = (tr === 3 || tr === 4 || tr === 11 || tr === 12);
+            if (!isBorderLanding) {
+                return false;
+            }
         }
     }
 
@@ -535,7 +532,7 @@ export function movePiece(fr, fc, tr, tc) {
                 dest.hp--;
                 if (gameState.board[fr][fc] && gameState.board[fr][fc].type === 'forge') { gameState.board[fr][fc] = piece; piece.onForge = true; }
                 else { gameState.board[fr][fc] = piece; }
-                piece.movedThisTurn = true; // Атака тоже считается ходом
+                piece.movedThisTurn = true; 
                 gameState.actionsLeft--;
                 sendNetworkMessage({ type: 'attack_hit', r: tr, c: tc, hp: dest.hp, isLast: (gameState.actionsLeft<=0) });
                 if(gameState.actionsLeft <= 0) showTurnBanner(false);
@@ -568,7 +565,7 @@ export function movePiece(fr, fc, tr, tc) {
 
     gameState.board[tr][tc] = piece; 
     piece.moved = true; 
-    piece.movedThisTurn = true; // ЗАПРЕЩАЕМ ХОДИТЬ ЭТОЙ ФИГУРОЙ СНОВА В ЭТОТ ХОД
+    piece.movedThisTurn = true; 
 
     if (costsAP) gameState.actionsLeft--;
     
@@ -586,7 +583,6 @@ export function movePiece(fr, fc, tr, tc) {
 
     if(gameState.actionsLeft <= 0) showTurnBanner(false);
     
-    // Сбрасываем выделение, чтобы подсветка не залипла
     gameState.selectedPiece = null; 
     updateUI(); render();
 }
@@ -601,8 +597,20 @@ export function isNearOwnPiece(r, c, type) {
             const nr = r + dr, nc = c + dc;
             if (nr >= 0 && nr < gameState.rows && nc >= 0 && nc < gameState.cols) {
                 const neighbor = gameState.board[nr][nc];
-                if (neighbor && neighbor.color === gameState.playerColor && !BUILDINGS.includes(neighbor.type)) {
-                    if (targetIsFog === isFog(nr, nc)) return true;
+                if (neighbor && neighbor.color === gameState.playerColor) {
+                    
+                    const neighborIsBuilding = BUILDINGS.includes(neighbor.type) || neighbor.type === 'forge';
+
+                    // --- ПРАВИЛО: СТЕНЫ МОЖНО СТРОИТЬ РЯДОМ С ЧЕМ УГОДНО (Юниты или Здания) ---
+                    if (type.startsWith('fortress')) {
+                         if (targetIsFog === isFog(nr, nc)) return true;
+                    } 
+                    // --- ПРАВИЛО: ОСТАЛЬНЫЕ ЗДАНИЯ ТОЛЬКО РЯДОМ С ЮНИТАМИ (НЕ ЗДАНИЯМИ) ---
+                    else {
+                        if (!neighborIsBuilding) {
+                             if (targetIsFog === isFog(nr, nc)) return true;
+                        }
+                    }
                 }
             }
         }
@@ -621,7 +629,6 @@ export function onPiecePointerDown(e, fr, fc) {
     const p = gameState.board[fr][fc];
     if (!p || p.color !== gameState.playerColor) return;
     
-    // --- ПРОВЕРКА УСТАЛОСТИ ---
     if (p.movedThisTurn) {
         showToast("ЭТА ФИГУРА УЖЕ ХОДИЛА!");
         return;
@@ -633,7 +640,7 @@ export function onPiecePointerDown(e, fr, fc) {
     const baseType = p.type.replace('_2', '');
     initDrag(e, `url(${PIECE_URLS[p.color + baseType]})`);
     
-    render(); // Перерисовываем, чтобы показать подсветку
+    render(); 
 }
 
 export function onSidebarPointerDown(e, type) {
