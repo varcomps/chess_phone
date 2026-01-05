@@ -1,17 +1,18 @@
 import { gameState } from './state.js';
 import { BUILDING_COSTS, BUILDING_LIMITS, FORTRESS_HP, BUILDINGS, PIECE_URLS, BUILDING_ICONS } from './constants.js';
 import { sendNetworkMessage } from './network.js';
-import { updateUI, render, recalcBoard, showToast, hasSpecial, isFog, isUpgradedUnit, openAcademyModal, closeModal, showPromotionModal, endGame, initDrag, dragState } from './ui.js';
+import { updateUI, render, recalcBoard, showToast, hasSpecial, isFog, isUpgradedUnit, openAcademyModal, closeModal, showPromotionModal, endGame, initDrag, dragState, showTurnBanner } from './ui.js';
 
 export function initBoard() {
     gameState.playerColor = gameState.myColor;
     gameState.board = Array(8).fill(null).map(() => Array(8).fill(null));
     const layout = ['r','n','b','q','k','b','n','r'];
     for(let i=0; i<8; i++) {
-        gameState.board[0][i] = { type: layout[i], color: 'b', moved: false, armor: 0 };
-        gameState.board[1][i] = { type: 'p', color: 'b', moved: false, armor: 0 };
-        gameState.board[6][i] = { type: 'p', color: 'w', moved: false, armor: 0 };
-        gameState.board[7][i] = { type: layout[i], color: 'w', moved: false, armor: 0 };
+        // movedThisTurn: false - добавлено
+        gameState.board[0][i] = { type: layout[i], color: 'b', moved: false, armor: 0, movedThisTurn: false };
+        gameState.board[1][i] = { type: 'p', color: 'b', moved: false, armor: 0, movedThisTurn: false };
+        gameState.board[6][i] = { type: 'p', color: 'w', moved: false, armor: 0, movedThisTurn: false };
+        gameState.board[7][i] = { type: layout[i], color: 'w', moved: false, armor: 0, movedThisTurn: false };
     }
     gameState.actionsLeft = (gameState.playerColor === 'w') ? 1 : 0; 
     recalcBoard(); render();
@@ -20,6 +21,9 @@ export function initBoard() {
 export function handleData(d) {
     const oppColor = (gameState.playerColor === 'w' ? 'b' : 'w');
     if (d.type === 'move') {
+        // --- СОХРАНЯЕМ ХОД ПРОТИВНИКА ДЛЯ ПОДСВЕТКИ ---
+        gameState.lastOpponentMove = { from: d.from, to: d.to };
+
         let movingPiece = gameState.board[d.from.r][d.from.c];
         if (!movingPiece) movingPiece = { type: 'p', color: oppColor }; 
         if (movingPiece && movingPiece.onForge) gameState.board[d.from.r][d.from.c] = { type: 'forge', color: movingPiece.color };
@@ -59,7 +63,16 @@ export function handleData(d) {
         playSlashAnimation();
         setTimeout(() => triggerExpansion(), 600); // Wait for slash
     }
-    if (d.isLast) turnEndLogic();
+    
+    // --- ПОКАЗЫВАЕМ БАННЕР "ТВОЙ ХОД" ЕСЛИ ХОД ПЕРЕДАН ---
+    if (d.isLast) {
+         turnEndLogic();
+         showTurnBanner(true);
+    } else if (d.type !== 'build' && d.type !== 'upgrade' && d.type !== 'demolish') {
+         // Противник походил, но ход не передал (если ОД были 2), можно показать промежуточный статус или просто обновить
+         render();
+    }
+    
     render(); updateUI();
 }
 
@@ -75,7 +88,15 @@ function playSlashAnimation() {
 
 export function turnEndLogic() {
     gameState.actionsLeft = hasSpecial(gameState.playerColor, 'hq') ? 2 : 1; 
-    gameState.board.flat().forEach(p => { if (p) p.freeMoveUsed = false; });
+    
+    // --- СБРОС УСТАЛОСТИ ---
+    gameState.board.flat().forEach(p => { 
+        if (p) {
+            p.freeMoveUsed = false; 
+            p.movedThisTurn = false; // Разрешаем ходить снова в новом ходу
+        }
+    });
+    
     collectResources();
 }
 
@@ -122,6 +143,7 @@ export function buildSomething(r, c, type) {
         else gameState.board[r][c] = null;
         gameState.actionsLeft -= apCost;
         sendNetworkMessage({ type: 'demolish', r, c, isLast: (gameState.actionsLeft<=0) });
+        if(gameState.actionsLeft <= 0) showTurnBanner(false);
         updateUI(); render();
         return;
     }
@@ -158,6 +180,7 @@ export function buildSomething(r, c, type) {
         
         gameState.actionsLeft -= apCost;
         sendNetworkMessage({ type: 'upgrade', r, c, newType: type, isLast: (gameState.actionsLeft<=0) });
+        if(gameState.actionsLeft <= 0) showTurnBanner(false);
         updateUI(); render();
         return;
     }
@@ -178,6 +201,7 @@ export function buildSomething(r, c, type) {
     if (type === 'fortress') newObj.hp = FORTRESS_HP['fortress'];
     gameState.board[r][c] = newObj;
     sendNetworkMessage({ type: 'build', r, c, buildType: type, isLast: (gameState.actionsLeft<=0) });
+    if(gameState.actionsLeft <= 0) showTurnBanner(false);
     updateUI(); render(); 
 }
 
@@ -352,9 +376,9 @@ export function recruitPawn() {
     
     gameState.myResources.food -= 2;
     gameState.actionsLeft--;
-    gameState.board[targetR][campC] = { type: 'p', color: gameState.playerColor, moved: true, armor: 0 };
+    gameState.board[targetR][campC] = { type: 'p', color: gameState.playerColor, moved: true, armor: 0, movedThisTurn: true };
     sendNetworkMessage({ type: 'transform', from: {r: campR, c: campC}, to: {r: targetR, c: campC}, newType: 'p', isLast: (gameState.actionsLeft <= 0) });
-    
+    if(gameState.actionsLeft <= 0) showTurnBanner(false);
     updateUI(); render();
 }
 
@@ -391,9 +415,10 @@ export function finishAcademyRecruit(newType, paperCost) {
     gameState.myResources.paper -= paperCost;
 
     gameState.board[from.r][from.c] = null;
-    gameState.board[spawnR][spawnC] = { type: newType, color: gameState.playerColor, moved: true, freeMoveUsed: false, armor: 0 };
+    gameState.board[spawnR][spawnC] = { type: newType, color: gameState.playerColor, moved: true, freeMoveUsed: false, armor: 0, movedThisTurn: true };
     gameState.actionsLeft--; 
     sendNetworkMessage({ type: 'transform', from: from, to: {r:spawnR, c:spawnC}, newType: newType, isLast: (gameState.actionsLeft <= 0) });
+    if(gameState.actionsLeft <= 0) showTurnBanner(false);
     closeModal('academy-modal');
     updateUI(); render();
 }
@@ -406,6 +431,7 @@ export function finishPromotion(newType) {
     gameState.board[fr][fc] = null;
     gameState.actionsLeft--;
     sendNetworkMessage({ type: 'move', from: {r:fr, c:fc}, to: {r:tr, c:tc}, isLast: (gameState.actionsLeft <= 0), win: false, promoteTo: newType });
+    if(gameState.actionsLeft <= 0) showTurnBanner(false);
     gameState.pendingMove = null; updateUI(); render();
 }
 
@@ -489,10 +515,12 @@ export function movePiece(fr, fc, tr, tc) {
         if (dest.color === piece.color || !dest.color) { 
             if (piece.onForge) gameState.board[fr][fc] = { type: 'forge', color: piece.color };
             else gameState.board[fr][fc] = null;
-            piece.onForge = true; piece.moved = true;
+            piece.onForge = true; piece.moved = true; piece.movedThisTurn = true;
             gameState.board[tr][tc] = piece;
             gameState.actionsLeft--;
             sendNetworkMessage({ type: 'move', from: {r:fr, c:fc}, to: {r:tr, c:tc}, isLast: (gameState.actionsLeft<=0), onForgeEnter: true });
+            if(gameState.actionsLeft <= 0) showTurnBanner(false);
+            gameState.selectedPiece = null;
             updateUI(); render();
             return;
         }
@@ -507,8 +535,11 @@ export function movePiece(fr, fc, tr, tc) {
                 dest.hp--;
                 if (gameState.board[fr][fc] && gameState.board[fr][fc].type === 'forge') { gameState.board[fr][fc] = piece; piece.onForge = true; }
                 else { gameState.board[fr][fc] = piece; }
+                piece.movedThisTurn = true; // Атака тоже считается ходом
                 gameState.actionsLeft--;
                 sendNetworkMessage({ type: 'attack_hit', r: tr, c: tc, hp: dest.hp, isLast: (gameState.actionsLeft<=0) });
+                if(gameState.actionsLeft <= 0) showTurnBanner(false);
+                gameState.selectedPiece = null;
                 updateUI(); render();
                 return;
             }
@@ -517,8 +548,11 @@ export function movePiece(fr, fc, tr, tc) {
             dest.armor--;
             if (gameState.board[fr][fc] && gameState.board[fr][fc].type === 'forge') { gameState.board[fr][fc] = piece; piece.onForge = true; }
             else { gameState.board[fr][fc] = piece; }
+            piece.movedThisTurn = true;
             gameState.actionsLeft--;
             sendNetworkMessage({ type: 'attack_armor', r: tr, c: tc, armor: dest.armor, isLast: (gameState.actionsLeft<=0) });
+            if(gameState.actionsLeft <= 0) showTurnBanner(false);
+            gameState.selectedPiece = null;
             updateUI(); render();
             return;
         }
@@ -534,6 +568,8 @@ export function movePiece(fr, fc, tr, tc) {
 
     gameState.board[tr][tc] = piece; 
     piece.moved = true; 
+    piece.movedThisTurn = true; // ЗАПРЕЩАЕМ ХОДИТЬ ЭТОЙ ФИГУРОЙ СНОВА В ЭТОТ ХОД
+
     if (costsAP) gameState.actionsLeft--;
     
     const endRow = gameState.playerColor === 'w' ? 0 : (gameState.rows - 1);
@@ -547,6 +583,11 @@ export function movePiece(fr, fc, tr, tc) {
         isLast: (gameState.actionsLeft <= 0), win: isWinMove, 
         freeMoveUsed: !costsAP 
     });
+
+    if(gameState.actionsLeft <= 0) showTurnBanner(false);
+    
+    // Сбрасываем выделение, чтобы подсветка не залипла
+    gameState.selectedPiece = null; 
     updateUI(); render();
 }
 
@@ -579,11 +620,20 @@ export function onPiecePointerDown(e, fr, fc) {
     if (gameState.board[fr][fc] && gameState.board[fr][fc].type === 'camp') return;
     const p = gameState.board[fr][fc];
     if (!p || p.color !== gameState.playerColor) return;
+    
+    // --- ПРОВЕРКА УСТАЛОСТИ ---
+    if (p.movedThisTurn) {
+        showToast("ЭТА ФИГУРА УЖЕ ХОДИЛА!");
+        return;
+    }
+
     gameState.selectedPiece = {r: fr, c: fc}; 
     dragState.isBuildingDrag = false;
     dragState.from = { r: fr, c: fc };
     const baseType = p.type.replace('_2', '');
     initDrag(e, `url(${PIECE_URLS[p.color + baseType]})`);
+    
+    render(); // Перерисовываем, чтобы показать подсветку
 }
 
 export function onSidebarPointerDown(e, type) {

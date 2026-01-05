@@ -14,6 +14,18 @@ export function showToast(msg) {
     setTimeout(() => { t.className = t.className.replace("show", ""); }, 3000);
 }
 
+// Баннер смены хода
+export function showTurnBanner(isMyTurn) {
+    const banner = document.getElementById('turn-banner');
+    if (!banner) return;
+    banner.innerText = isMyTurn ? "ВАШ ХОД" : "ХОД ПРОТИВНИКА";
+    banner.style.color = isMyTurn ? "#2ecc71" : "#e74c3c";
+    banner.classList.add('active');
+    setTimeout(() => {
+        banner.classList.remove('active');
+    }, 1500);
+}
+
 export function isFog(r, c) {
     if (!gameState.isExpanded) return false;
     return (r >= 4 && r <= 11);
@@ -70,6 +82,25 @@ export function render() {
             square.className = `square ${isDark ? 'dark' : 'light'}`;
             if (isFog(r, c)) square.classList.add('fog');
             
+            // --- ПОДСВЕТКА ПОСЛЕДНЕГО ХОДА (РАМКИ) ---
+            if (gameState.lastOpponentMove) {
+                if (gameState.lastOpponentMove.from.r === r && gameState.lastOpponentMove.from.c === c) square.classList.add('last-move-src');
+                if (gameState.lastOpponentMove.to.r === r && gameState.lastOpponentMove.to.c === c) square.classList.add('last-move-dst');
+            }
+
+            // --- ПОДСВЕТКА ВОЗМОЖНЫХ ХОДОВ ---
+            if (gameState.selectedPiece && !gameState.isBuildMode) {
+                if (isValidMove(gameState.selectedPiece.r, gameState.selectedPiece.c, r, c)) {
+                    square.classList.add('legal-move');
+                    if (gameState.board[r][c] && gameState.board[r][c].color !== gameState.playerColor) {
+                        square.classList.add('enemy-target');
+                    }
+                }
+                if (gameState.selectedPiece.r === r && gameState.selectedPiece.c === c) {
+                    square.style.boxShadow = "inset 0 0 25px rgba(241, 196, 15, 0.6)";
+                }
+            }
+            
             if (gameState.isExpanded && r >= 4 && r < 12 && !gameState.expansionAnimationDone) { 
                 square.classList.add('growing');
                 const dist = Math.abs(r - 7.5) + Math.abs(c - 3.5);
@@ -103,20 +134,26 @@ export function render() {
                         bar.appendChild(fill);
                         pDiv.appendChild(bar);
                     }
-                    
                     square.appendChild(pDiv);
                 } else {
                     pDiv.className = 'piece';
                     const baseType = p.type.replace('_2', '');
                     pDiv.style.backgroundImage = `url(${PIECE_URLS[p.color + baseType]})`;
                     if (isUpgradedUnit(p)) pDiv.classList.add('upgraded');
+                    
+                    if (p.movedThisTurn) pDiv.classList.add('exhausted');
+
                     if (p.armor > 0) {
                         const badge = document.createElement('div');
                         badge.className = 'armor-badge';
                         badge.innerText = p.armor;
                         pDiv.appendChild(badge);
                     }
-                    pDiv.addEventListener('pointerdown', e => onPiecePointerDown(e, r, c));
+                    pDiv.addEventListener('pointerdown', (e) => {
+                        e.stopPropagation();
+                        onPiecePointerDown(e, r, c);
+                    });
+                    
                     square.appendChild(pDiv);
                     if (p.onForge && p.color === gameState.playerColor) {
                         gameState.selectedPiece = { r, c }; 
@@ -125,6 +162,18 @@ export function render() {
                     }
                 }
             } 
+
+            square.addEventListener('pointerdown', (e) => {
+                if (gameState.selectedPiece && !gameState.isBuildMode) {
+                     if (isValidMove(gameState.selectedPiece.r, gameState.selectedPiece.c, r, c)) {
+                         movePiece(gameState.selectedPiece.r, gameState.selectedPiece.c, r, c);
+                     } else {
+                         gameState.selectedPiece = null;
+                         render();
+                     }
+                }
+            });
+
             boardEl.appendChild(square);
         });
     });

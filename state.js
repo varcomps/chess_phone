@@ -20,5 +20,6 @@ export const gameState = {
     },
     
     pendingMove: null,
-    pendingAcademy: null
+    pendingAcademy: null,
+    lastOpponentMove: null // Для подсветки последнего хода противника
 };

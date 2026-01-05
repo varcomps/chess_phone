@@ -13,7 +13,7 @@
     --tier-2: #2ecc71;
     --tier-3: #00d2d3;
     
-    --sq-size: 40px; /* Динамический JS */
+    --sq-size: 40px; 
 }
 
 body { 
@@ -267,7 +267,6 @@ button:active { transform: scale(0.96); }
 #board { 
     display: grid; 
     grid-template-columns: repeat(var(--cols), var(--sq-size)); 
-    /* ВАЖНО: auto позволяет строкам сжиматься */
     grid-template-rows: repeat(var(--rows), auto); 
     position: relative; 
     background: #000;
@@ -288,12 +287,10 @@ button:active { transform: scale(0.96); }
 
 .square { 
     width: var(--sq-size); 
-    /* Плавное изменение высоты для всех клеток */
     height: var(--sq-size); 
     display: flex; justify-content: center; align-items: center; 
     position: relative; box-sizing: border-box; 
     background-color: #222; 
-    /* Обязательно overflow:hidden, чтобы при сжатии содержимое не торчало */
     overflow: hidden; 
     transition: height 2s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -312,27 +309,13 @@ button:active { transform: scale(0.96); }
     z-index: 1;
 }
 
-/* ЭТОТ КЛАСС СЖИМАЕТ ТУМАН В 0 */
 .square.collapsed {
-    height: 0 !important;
-    min-height: 0 !important;
-    border: none !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    /* Убираем задержки для схлопывания, но оставляем transition для разворачивания */
+    height: 0 !important; min-height: 0 !important;
+    border: none !important; margin: 0 !important; padding: 0 !important;
 }
 
-/* Подготовка к анимации волны (невидимость) */
-.square.fog-waiting {
-    opacity: 0;
-    transform: scale(0.1);
-}
-
-/* Сама волна появления */
-.square.fog-anim {
-    animation: popInFog 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-}
-
+.square.fog-waiting { opacity: 0; transform: scale(0.1); }
+.square.fog-anim { animation: popInFog 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
 @keyframes popInFog {
     0% { opacity: 0; transform: scale(0.1); }
     100% { opacity: 1; transform: scale(1); }
@@ -352,7 +335,7 @@ button:active { transform: scale(0.96); }
 }
 .piece:active { transform: scale(1.1); }
 
-/* --- GLITCH SHRED EFFECT --- */
+/* --- ЭФФЕКТЫ ФИГУР --- */
 @keyframes shred-tear {
     0% { clip-path: inset(0 0 0 0); transform: translateX(0); filter: hue-rotate(0deg); opacity: 1; }
     10% { clip-path: inset(20% 0 30% 0); transform: translateX(-5px); opacity: 0.8; }
@@ -364,30 +347,14 @@ button:active { transform: scale(0.96); }
     100% { clip-path: inset(0 0 0 0); transform: translateX(0); filter: hue-rotate(0deg); opacity: 1; }
 }
 
-.glitch-shred {
-    animation: shred-tear 2.0s cubic-bezier(0.36, 0, 0.66, -0.56) forwards;
-}
-
+.glitch-shred { animation: shred-tear 2.0s cubic-bezier(0.36, 0, 0.66, -0.56) forwards; }
 .glitch-shred::before, .glitch-shred::after {
-    content: '';
-    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-    background: inherit;
-    background-size: contain;
-    background-repeat: no-repeat;
-    background-position: center;
-    opacity: 0.5;
-    z-index: -1;
+    content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: inherit; background-size: contain; background-repeat: no-repeat;
+    background-position: center; opacity: 0.5; z-index: -1;
 }
-.glitch-shred::before {
-    animation: shred-tear 2.0s reverse forwards;
-    transform: translateX(3px);
-    clip-path: polygon(0 0, 100% 0, 100% 45%, 0 45%);
-}
-.glitch-shred::after {
-    animation: shred-tear 2.2s reverse forwards;
-    transform: translateX(-3px);
-    clip-path: polygon(0 55%, 100% 55%, 100% 100%, 0 100%);
-}
+.glitch-shred::before { animation: shred-tear 2.0s reverse forwards; transform: translateX(3px); clip-path: polygon(0 0, 100% 0, 100% 45%, 0 45%); }
+.glitch-shred::after { animation: shred-tear 2.2s reverse forwards; transform: translateX(-3px); clip-path: polygon(0 55%, 100% 55%, 100% 100%, 0 100%); }
 
 .piece .armor-badge {
     position: absolute; bottom: -5px; right: -5px; left: auto;
@@ -401,8 +368,7 @@ button:active { transform: scale(0.96); }
     font-size: calc(var(--sq-size) * 0.65); 
     filter: drop-shadow(0 4px 6px rgba(0,0,0,0.8)); 
     pointer-events: none; z-index: 11; display: flex; justify-content: center; align-items: center;
-    position: relative;
-    transition: font-size 0.3s;
+    position: relative; transition: font-size 0.3s;
 }
 .special-piece .hp-bar {
     position: absolute; bottom: 0; width: 120%; height: 5px; 
@@ -414,36 +380,22 @@ button:active { transform: scale(0.96); }
 /* --- SLASH EFFECT --- */
 #slash-overlay {
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-    pointer-events: none; z-index: 99999;
-    display: none;
-    justify-content: center; align-items: center;
-    overflow: hidden;
+    pointer-events: none; z-index: 99999; display: none;
+    justify-content: center; align-items: center; overflow: hidden;
 }
 #slash-overlay.active { display: flex; }
-
 .slash-line {
     position: absolute; width: 0; height: 4px;
-    background: #fff;
-    box-shadow: 0 0 20px #0ff, 0 0 40px #0ff;
+    background: #fff; box-shadow: 0 0 20px #0ff, 0 0 40px #0ff;
     animation: slashExpand 0.2s ease-out forwards;
 }
-
 .slash-flash {
     position: absolute; width: 100%; height: 100%;
     background: white; opacity: 0;
     animation: slashFlash 0.5s 0.2s ease-out forwards;
 }
-
-@keyframes slashExpand {
-    0% { width: 0; opacity: 1; }
-    50% { width: 120%; opacity: 1; transform: rotate(-2deg); }
-    100% { width: 150%; opacity: 0; transform: rotate(-2deg); }
-}
-
-@keyframes slashFlash {
-    0% { opacity: 0.8; }
-    100% { opacity: 0; }
-}
+@keyframes slashExpand { 0% { width: 0; opacity: 1; } 50% { width: 120%; opacity: 1; transform: rotate(-2deg); } 100% { width: 150%; opacity: 0; transform: rotate(-2deg); } }
+@keyframes slashFlash { 0% { opacity: 0.8; } 100% { opacity: 0; } }
 
 /* MODALS */
 .modal-overlay {
@@ -462,8 +414,8 @@ button:active { transform: scale(0.96); }
 .promo-options { display: flex; gap: 12px; margin-top: 20px; justify-content: center; flex-wrap: wrap; }
 .promo-btn {
     width: 70px; height: 70px; background: rgba(255,255,255,0.05); 
-    border: 2px solid #555;
-    border-radius: 12px; cursor: pointer; font-size: 28px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    border: 2px solid #555; border-radius: 12px; cursor: pointer; 
+    font-size: 28px; display: flex; flex-direction: column; align-items: center; justify-content: center;
     position: relative; transition: 0.2s;
 }
 .promo-btn:hover { background: rgba(255,255,255,0.1); border-color: var(--accent); }
@@ -481,33 +433,13 @@ button:active { transform: scale(0.96); }
 .hidden { display: none !important; opacity: 0; pointer-events: none; }
 .hidden-btn { display: none !important; }
 
-#ui-tooltip {
-    position: fixed; pointer-events: none; z-index: 2000;
-    background: rgba(0,0,0,0.9); padding: 10px 15px; border-radius: 8px;
-    border: 1px solid var(--accent); color: #ecf0f1; font-size: 13px;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.8);
-    display: none; white-space: nowrap; backdrop-filter: blur(4px);
-}
-
-/* --- TOAST NOTIFICATIONS --- */
+/* --- TOAST --- */
 #game-toast {
-    visibility: hidden;
-    min-width: 250px;
-    background-color: rgba(20, 20, 20, 0.95);
-    color: #fff;
-    text-align: center;
-    border-radius: 12px;
-    padding: 16px;
-    position: fixed;
-    z-index: 10000;
-    left: 50%;
-    bottom: 100px;
-    transform: translateX(-50%);
-    font-size: 16px;
-    box-shadow: 0 0 20px rgba(0,0,0,0.8);
-    border: 1px solid var(--accent);
-    opacity: 0;
-    transition: opacity 0.3s, bottom 0.3s;
+    visibility: hidden; min-width: 250px; background-color: rgba(20, 20, 20, 0.95);
+    color: #fff; text-align: center; border-radius: 12px; padding: 16px;
+    position: fixed; z-index: 10000; left: 50%; bottom: 100px; transform: translateX(-50%);
+    font-size: 16px; box-shadow: 0 0 20px rgba(0,0,0,0.8);
+    border: 1px solid var(--accent); opacity: 0; transition: opacity 0.3s, bottom 0.3s;
 }
 #game-toast.show { visibility: visible; opacity: 1; bottom: 110px; }
 
@@ -515,81 +447,122 @@ button:active { transform: scale(0.96); }
     position: absolute; bottom: 30px; right: 20px; 
     background: rgba(20, 20, 20, 0.9); border: 1px solid #e67e22; 
     padding: 12px; border-radius: 12px; z-index: 155; display: none;
-    backdrop-filter: blur(10px);
-    box-shadow: 0 0 20px rgba(230, 126, 34, 0.3);
+    backdrop-filter: blur(10px); box-shadow: 0 0 20px rgba(230, 126, 34, 0.3);
     transition: bottom 0.3s;
 }
 
-/* --- АНИМИРОВАННОЕ МЕНЮ ПОДКЛЮЧЕНИЯ --- */
+/* --- ПОДКЛЮЧЕНИЕ --- */
 #connection-overlay {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: #000; 
-    z-index: 3000; display: flex; justify-content: center; align-items: center;
-    transition: opacity 0.5s; padding: 20px; box-sizing: border-box;
-    overflow: hidden;
+    background: #000; z-index: 3000; display: flex; justify-content: center; align-items: center;
+    transition: opacity 0.5s; padding: 20px; box-sizing: border-box; overflow: hidden;
 }
-
-#menu-canvas {
-    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-    z-index: 1; opacity: 0.9;
-}
-
+#menu-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; opacity: 0.9; }
 #connection-card {
-    background: rgba(10, 10, 10, 0.7);
-    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(10, 10, 10, 0.7); border: 1px solid rgba(255,255,255,0.1);
     padding: 50px 30px; border-radius: 0;
     box-shadow: 0 0 50px rgba(0,0,0,0.9), inset 0 0 20px rgba(0,0,0,0.5);
-    text-align: center; width: 100%; max-width: 400px;
-    backdrop-filter: blur(10px);
-    display: flex; flex-direction: column; gap: 25px;
-    position: relative; z-index: 10;
+    text-align: center; width: 100%; max-width: 400px; backdrop-filter: blur(10px);
+    display: flex; flex-direction: column; gap: 25px; position: relative; z-index: 10;
     clip-path: polygon(0 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%);
     border-left: 2px solid var(--accent);
 }
-
 .conn-title { 
-    font-size: 3.5em; font-weight: 900; color: #fff; 
-    letter-spacing: 2px; text-transform: uppercase;
-    text-shadow: 2px 2px 0px var(--accent);
-    margin-bottom: 5px;
-    position: relative;
+    font-size: 3.5em; font-weight: 900; color: #fff; letter-spacing: 2px; text-transform: uppercase;
+    text-shadow: 2px 2px 0px var(--accent); margin-bottom: 5px; position: relative;
     animation: glitch 3s infinite;
 }
-
 @keyframes glitch {
     0% { text-shadow: 2px 2px 0px var(--accent); transform: translate(0); }
     2% { text-shadow: -2px -2px 0px #0ff; transform: translate(-2px, 2px); }
     4% { text-shadow: 2px 2px 0px var(--accent); transform: translate(0); }
     100% { text-shadow: 2px 2px 0px var(--accent); transform: translate(0); }
 }
-
 .conn-input-wrapper { text-align: left; }
 .conn-label { color: var(--accent); font-size: 0.7em; margin-bottom: 5px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;}
-
 input[type=number]::-webkit-inner-spin-button, 
 input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 input[type=number] { -moz-appearance: textfield; }
-
 input {
     width: 100%; padding: 18px; background: rgba(0,0,0,0.5);
-    border: 1px solid #444; color: var(--accent);
-    font-size: 1.5em; text-align: center; box-sizing: border-box;
-    outline: none; transition: 0.3s; font-family: 'Courier New', monospace; letter-spacing: 4px;
+    border: 1px solid #444; color: var(--accent); font-size: 1.5em; text-align: center; 
+    box-sizing: border-box; outline: none; transition: 0.3s; font-family: 'Courier New', monospace; letter-spacing: 4px;
     border-radius: 4px;
 }
 input:focus { border-color: var(--accent); box-shadow: 0 0 15px rgba(241, 196, 15, 0.2); background: rgba(0,0,0,0.8); }
-
 .conn-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 10px; }
-
 .connect-btn { 
-    padding: 20px; font-size: 1em; 
-    border-radius: 4px; font-weight: 800; cursor: pointer; border:none;
-    transition: all 0.2s; position: relative; overflow: hidden;
-    text-transform: uppercase; letter-spacing: 1px;
+    padding: 20px; font-size: 1em; border-radius: 4px; font-weight: 800; cursor: pointer; border:none;
+    transition: all 0.2s; position: relative; overflow: hidden; text-transform: uppercase; letter-spacing: 1px;
 }
-
 .btn-create { background: transparent; border: 2px solid #3498db; color: #3498db; }
 .btn-create:hover { background: rgba(52, 152, 219, 0.1); box-shadow: 0 0 20px rgba(52, 152, 219, 0.4); }
-
 .btn-join { background: var(--accent); color: #000; border: 2px solid var(--accent); }
 .btn-join:hover { background: #fff; border-color: #fff; box-shadow: 0 0 20px rgba(255,255,255, 0.4); }
+
+/* --- ИГРОВОЙ ПРОЦЕСС --- */
+
+/* 1. Подсветка обычного хода (ЯРКО-ЗЕЛЕНАЯ ТОЧКА) */
+.square.legal-move:not(.enemy-target)::after {
+    content: ""; position: absolute; width: 30%; height: 30%;
+    background: #00ff00; /* Неоновый зеленый */
+    border-radius: 50%;
+    box-shadow: 0 0 15px #00ff00; /* Свечение */
+    z-index: 15;
+    animation: pulseGreen 1.5s infinite;
+}
+@keyframes pulseGreen {
+    0% { transform: scale(0.8); opacity: 0.7; }
+    50% { transform: scale(1.2); opacity: 1; }
+    100% { transform: scale(0.8); opacity: 0.7; }
+}
+
+/* 2. АТАКА: ОГРОМНЫЙ КРАСНЫЙ КРЕСТ (❌) */
+.square.legal-move.enemy-target::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    /* Рисуем крест градиентами */
+    background: 
+        linear-gradient(to top right, transparent calc(50% - 4px), #ff0000 calc(50% - 4px), #ff0000 calc(50% + 4px), transparent calc(50% + 4px)),
+        linear-gradient(to bottom right, transparent calc(50% - 4px), #ff0000 calc(50% - 4px), #ff0000 calc(50% + 4px), transparent calc(50% + 4px));
+    z-index: 20; /* Поверх фигуры */
+    opacity: 0.8;
+    box-shadow: none; border-radius: 0; width: 100%; height: 100%;
+    animation: crossFlash 0.6s infinite alternate;
+}
+@keyframes crossFlash {
+    from { opacity: 0.6; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1.1); }
+}
+
+/* 3. Усталость (Серая фигура) */
+.piece.exhausted { filter: grayscale(100%) brightness(0.6) opacity(0.7); cursor: not-allowed; }
+
+/* 4. Последний ход противника (ТОЛЬКО РАМКИ) */
+.square.last-move-src {
+    box-shadow: inset 0 0 0 4px #9b59b6 !important; /* Фиолетовая рамка */
+}
+.square.last-move-dst {
+    box-shadow: inset 0 0 0 4px #f1c40f !important; /* Желтая рамка */
+}
+
+/* 5. Баннер смены хода */
+#turn-banner {
+    position: fixed; top: 40%; left: 0; width: 100%; text-align: center;
+    font-size: 3em; font-weight: 900; color: #fff; text-shadow: 0 0 20px rgba(0,0,0,1);
+    background: rgba(0,0,0,0.7); padding: 20px 0;
+    transform: scaleX(0); opacity: 0; pointer-events: none; z-index: 5000;
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s;
+    backdrop-filter: blur(5px); border-top: 2px solid var(--accent); border-bottom: 2px solid var(--accent);
+}
+#turn-banner.active { transform: scaleX(1); opacity: 1; }
+
+/* 6. Тултипы (Fixed) */
+#ui-tooltip {
+    position: fixed; pointer-events: none; z-index: 2000;
+    background: rgba(0,0,0,0.9); padding: 10px 15px; border-radius: 8px;
+    border: 1px solid var(--accent); color: #ecf0f1; font-size: 13px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.8);
+    display: none; white-space: nowrap; backdrop-filter: blur(4px);
+}
