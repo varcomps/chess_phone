@@ -3,7 +3,7 @@ import { BUILDING_COSTS, BUILDING_LIMITS, FORTRESS_HP, BUILDINGS, PIECE_URLS, BU
 import { sendNetworkMessage } from './network.js';
 import { updateUI, render, recalcBoard, showToast, hasSpecial, isFog, isUpgradedUnit, openAcademyModal, closeModal, showPromotionModal, endGame, initDrag, dragState, showTurnBanner, playSlashAnimation, openCampModal, openWorkshopModal, openProductionModal, openMageTowerModal, playMagicShot } from './ui.js';
 
-// ... initBoard, handleData ... (ВНИМАНИЕ: обновлен handleData)
+// ... initBoard, handleData ... (ВНИМАНИЕ: обновлены handleData, turnEndLogic и applyRegeneration)
 
 export function initBoard() {
     gameState.playerColor = gameState.myColor;
@@ -45,11 +45,9 @@ export function handleData(d) {
             else if(target.hp > 0) target.hp = Math.max(0, target.hp - 1);
             else gameState.board[d.r][d.c] = null; 
         }
-        // ИЗМЕНЕНО: Запускаем анимацию шарика, если есть координаты 'from'
         if (d.from) {
             playMagicShot(d.from.r, d.from.c, d.r, d.c);
         } else {
-            // Фолбек если старый клиент
             playSlashAnimation();
         }
         gameState.lastOpponentMove = { from: d.from, to: {r:d.r, c:d.c}, isCapture: true };
@@ -57,7 +55,6 @@ export function handleData(d) {
         if (d.from && gameState.board[d.from.r][d.from.c]) {
              gameState.board[d.from.r][d.from.c] = null;
         }
-        // ИЗМЕНЕНО: Таран теперь rank 1
         const isElite = d.newType.endsWith('_2'); 
         let newObj = { type: d.newType, color: oppColor, moved: true, armor: 0, rank: isElite ? 2 : 1 };
         if (d.newType === 'ram') newObj.armor = 1;
@@ -91,8 +88,11 @@ export function handleData(d) {
         playSlashAnimation();
         setTimeout(() => triggerExpansion(), 700);
     }
+    // УБРАНО: regen_sync. Мы доверяем локальному расчету.
     
     if (d.isLast) {
+         // Сообщение "isLast" от противника -> значит сейчас МОЙ ход.
+         // Я запускаю turnEndLogic, которая полечит МЕНЯ.
          turnEndLogic();
          showTurnBanner(true);
     } else if (d.type !== 'build' && d.type !== 'upgrade' && d.type !== 'demolish') {
@@ -122,31 +122,45 @@ export function turnEndLogic() {
     });
 
     collectResources();
-    applyRegeneration();
+    // Начало МОЕГО хода -> лечим МЕНЯ (gameState.playerColor)
+    applyRegeneration(gameState.playerColor);
 }
 
-// ... applyRegeneration, getMaxResourceLimit, collectResources (без изменений) ...
+// ... getMaxResourceLimit, collectResources ...
 
-function applyRegeneration() {
+// ИЗМЕНЕНО: Функция теперь принимает цвет, кого лечить
+function applyRegeneration(targetColor) {
     const enemyRams = [];
-    const oppColor = (gameState.playerColor === 'w' ? 'b' : 'w');
+    // Враг для "targetColor"
+    const enemyColor = (targetColor === 'w' ? 'b' : 'w');
+
     for(let r=0; r<gameState.rows; r++) {
         for(let c=0; c<gameState.cols; c++) {
             const p = gameState.board[r][c];
-            if (p && p.type === 'ram' && p.color === oppColor) {
+            if (p && p.type === 'ram' && p.color === enemyColor) {
                 enemyRams.push({r, c});
             }
         }
     }
+    
     for(let r=0; r<gameState.rows; r++) {
         for(let c=0; c<gameState.cols; c++) {
             const p = gameState.board[r][c];
-            if (p && p.color === gameState.playerColor) {
+            // Если фигура принадлежит тому, кого мы сейчас лечим (targetColor)
+            if (p && p.color === targetColor) {
                 let canRegen = true;
+                
+                // ИСПРАВЛЕНО: Таран блокирует лечение только вплотную (8 клеток вокруг)
                 for (let ram of enemyRams) {
-                    const dist = Math.sqrt(Math.pow(r - ram.r, 2) + Math.pow(c - ram.c, 2));
-                    if (dist <= 8) { canRegen = false; break; }
+                    const dr = Math.abs(r - ram.r);
+                    const dc = Math.abs(c - ram.c);
+                    // Если таран на соседней клетке (дистанция <= 1)
+                    if (dr <= 1 && dc <= 1) { 
+                        canRegen = false; 
+                        break; 
+                    }
                 }
+                
                 if (canRegen) {
                     if (p.type === 'fortress_t2' && p.hp < 4) p.hp++;
                     if (p.type === 'fortress_t3' && p.hp < 8) p.hp = Math.min(8, p.hp + 2);
@@ -214,8 +228,14 @@ export function buildSomething(r, c, type) {
         gameState.board[r][c] = null;
         if(!gameState.isAdminMode) gameState.actionsLeft -= apCost;
         
-        sendNetworkMessage({ type: 'demolish', r, c, isLast: (gameState.actionsLeft<=0 && !gameState.isAdminMode) });
-        if(gameState.actionsLeft <= 0 && !gameState.isAdminMode) showTurnBanner(false);
+        const isLast = (gameState.actionsLeft<=0 && !gameState.isAdminMode);
+        sendNetworkMessage({ type: 'demolish', r, c, isLast: isLast });
+        if(isLast) {
+            // КОНЕЦ МОЕГО ХОДА -> Начинается ход противника.
+            // Я должен полечить ПРОТИВНИКА у себя на экране, чтобы наши данные совпали.
+            applyRegeneration(gameState.playerColor === 'w' ? 'b' : 'w');
+            showTurnBanner(false);
+        }
         updateUI(); render();
         return;
     }
@@ -252,8 +272,13 @@ export function buildSomething(r, c, type) {
         if (type === 'hq_t4') gameState.board[r][c].armor = 3;
         
         if(!gameState.isAdminMode) gameState.actionsLeft -= apCost;
-        sendNetworkMessage({ type: 'upgrade', r, c, newType: type, isLast: (gameState.actionsLeft<=0 && !gameState.isAdminMode) });
-        if(gameState.actionsLeft <= 0 && !gameState.isAdminMode) showTurnBanner(false);
+        
+        const isLast = (gameState.actionsLeft<=0 && !gameState.isAdminMode);
+        sendNetworkMessage({ type: 'upgrade', r, c, newType: type, isLast: isLast });
+        if(isLast) {
+            applyRegeneration(gameState.playerColor === 'w' ? 'b' : 'w');
+            showTurnBanner(false);
+        }
         updateUI(); render();
         return;
     }
@@ -273,8 +298,13 @@ export function buildSomething(r, c, type) {
     if (type === 'fortress') newObj.hp = FORTRESS_HP['fortress'];
     if (type === 'barricade') newObj.hp = FORTRESS_HP['barricade'];
     gameState.board[r][c] = newObj;
-    sendNetworkMessage({ type: 'build', r, c, buildType: type, isLast: (gameState.actionsLeft<=0 && !gameState.isAdminMode) });
-    if(gameState.actionsLeft <= 0 && !gameState.isAdminMode) showTurnBanner(false);
+    
+    const isLast = (gameState.actionsLeft<=0 && !gameState.isAdminMode);
+    sendNetworkMessage({ type: 'build', r, c, buildType: type, isLast: isLast });
+    if(isLast) {
+        applyRegeneration(gameState.playerColor === 'w' ? 'b' : 'w');
+        showTurnBanner(false);
+    }
     updateUI(); render(); 
 }
 
@@ -412,9 +442,13 @@ export function recruitPawn() {
     }
     gameState.board[targetR][targetC] = { type: 'p', color: gameState.playerColor, moved: true, armor: 0, movedThisTurn: true, rank: 1 };
     
-    sendNetworkMessage({ type: 'transform', from: {r: target.r, c: target.c}, to: {r: targetR, c: targetC}, newType: 'p', isLast: (gameState.actionsLeft <= 0 && !gameState.isAdminMode) });
+    const isLast = (gameState.actionsLeft <= 0 && !gameState.isAdminMode);
+    sendNetworkMessage({ type: 'transform', from: {r: target.r, c: target.c}, to: {r: targetR, c: targetC}, newType: 'p', isLast: isLast });
     
-    if(gameState.actionsLeft <= 0 && !gameState.isAdminMode) showTurnBanner(false);
+    if(isLast) {
+        applyRegeneration(gameState.playerColor === 'w' ? 'b' : 'w');
+        showTurnBanner(false);
+    }
     
     closeModal('camp-modal');
     updateUI(); render();
@@ -451,10 +485,14 @@ export function finishWorkshopBuild(unitType) {
     // ИЗМЕНЕНО: Таран rank 1. НЕ ЭЛИТНЫЙ.
     gameState.board[spawnR][spawnC] = { type: 'ram', color: gameState.playerColor, moved: true, armor: 1, movedThisTurn: true, rank: 1 };
     
+    const isLast = (gameState.actionsLeft <= 0 && !gameState.isAdminMode);
     // Отправляем transform с координатами: from (пешка) -> to (спавн тарана)
-    sendNetworkMessage({ type: 'transform', from: from, to: {r: spawnR, c: spawnC}, newType: 'ram', isLast: (gameState.actionsLeft <= 0 && !gameState.isAdminMode) });
+    sendNetworkMessage({ type: 'transform', from: from, to: {r: spawnR, c: spawnC}, newType: 'ram', isLast: isLast });
     
-    if(gameState.actionsLeft <= 0 && !gameState.isAdminMode) showTurnBanner(false);
+    if(isLast) {
+        applyRegeneration(gameState.playerColor === 'w' ? 'b' : 'w');
+        showTurnBanner(false);
+    }
     closeModal('workshop-modal');
     updateUI(); render();
 }
@@ -490,8 +528,12 @@ export function finishAcademyRecruit(newType, paperCost) {
     };
 
     if(!gameState.isAdminMode) gameState.actionsLeft--; 
-    sendNetworkMessage({ type: 'transform', from: from, to: {r:spawnR, c:spawnC}, newType: newType, isLast: (gameState.actionsLeft <= 0 && !gameState.isAdminMode) });
-    if(gameState.actionsLeft <= 0 && !gameState.isAdminMode) showTurnBanner(false);
+    const isLast = (gameState.actionsLeft <= 0 && !gameState.isAdminMode);
+    sendNetworkMessage({ type: 'transform', from: from, to: {r:spawnR, c:spawnC}, newType: newType, isLast: isLast });
+    if(isLast) {
+        applyRegeneration(gameState.playerColor === 'w' ? 'b' : 'w');
+        showTurnBanner(false);
+    }
     closeModal('academy-modal');
     updateUI(); render();
 }
@@ -605,12 +647,13 @@ export function shootMageTower(targetR, targetC) {
     // Используем playMagicShot из ui.js (убедись, что там обновленная версия с position:fixed)
     playMagicShot(tower.r, tower.c, targetR, targetC);
     
+    const isLast = (gameState.actionsLeft <= 0 && !gameState.isAdminMode);
     sendNetworkMessage({ 
         type: 'attack_shoot', 
         r: targetR, 
         c: targetC, 
         from: {r:tower.r, c:tower.c}, 
-        isLast: (gameState.actionsLeft <= 0 && !gameState.isAdminMode) 
+        isLast: isLast 
     });
     
     // Сброс режимов
@@ -618,7 +661,10 @@ export function shootMageTower(targetR, targetC) {
     gameState.targetingSource = null;
     gameState.pendingInteraction = null;
     
-    if(gameState.actionsLeft <= 0 && !gameState.isAdminMode) showTurnBanner(false);
+    if(isLast) {
+        applyRegeneration(gameState.playerColor === 'w' ? 'b' : 'w');
+        showTurnBanner(false);
+    }
     updateUI(); render();
 }
 
@@ -631,8 +677,12 @@ export function finishPromotion(newType) {
     gameState.board[tr][tc].type = newType; 
     gameState.board[fr][fc] = null;
     if(!gameState.isAdminMode) gameState.actionsLeft--;
-    sendNetworkMessage({ type: 'move', from: {r:fr, c:fc}, to: {r:tr, c:tc}, isLast: (gameState.actionsLeft <= 0 && !gameState.isAdminMode), win: false, promoteTo: newType });
-    if(gameState.actionsLeft <= 0 && !gameState.isAdminMode) showTurnBanner(false);
+    const isLast = (gameState.actionsLeft <= 0 && !gameState.isAdminMode);
+    sendNetworkMessage({ type: 'move', from: {r:fr, c:fc}, to: {r:tr, c:tc}, isLast: isLast, win: false, promoteTo: newType });
+    if(isLast) {
+        applyRegeneration(gameState.playerColor === 'w' ? 'b' : 'w');
+        showTurnBanner(false);
+    }
     gameState.pendingMove = null; updateUI(); render();
 }
 
@@ -751,8 +801,12 @@ export function movePiece(fr, fc, tr, tc) {
             
             piece.movedThisTurn = true;
             if(!gameState.isAdminMode) gameState.actionsLeft--;
-            sendNetworkMessage({ type: 'attack_armor', r: tr, c: tc, armor: dest.armor, isLast: (gameState.actionsLeft<=0 && !gameState.isAdminMode) });
-            if(gameState.actionsLeft <= 0 && !gameState.isAdminMode) showTurnBanner(false);
+            const isLast = (gameState.actionsLeft<=0 && !gameState.isAdminMode);
+            sendNetworkMessage({ type: 'attack_armor', r: tr, c: tc, armor: dest.armor, isLast: isLast });
+            if(isLast) {
+                applyRegeneration(gameState.playerColor === 'w' ? 'b' : 'w');
+                showTurnBanner(false);
+            }
             gameState.selectedPiece = null;
             updateUI(); render();
             return; 
@@ -763,8 +817,12 @@ export function movePiece(fr, fc, tr, tc) {
             dest.hp = Math.max(0, dest.hp - 1);
             if (piece.type !== 'p' || piece.rank !== 2) piece.movedThisTurn = true; 
             if(!gameState.isAdminMode) gameState.actionsLeft--;
-            sendNetworkMessage({ type: 'attack_hit', r: tr, c: tc, hp: dest.hp, isLast: (gameState.actionsLeft<=0 && !gameState.isAdminMode) });
-            if(gameState.actionsLeft <= 0 && !gameState.isAdminMode) showTurnBanner(false);
+            const isLast = (gameState.actionsLeft<=0 && !gameState.isAdminMode);
+            sendNetworkMessage({ type: 'attack_hit', r: tr, c: tc, hp: dest.hp, isLast: isLast });
+            if(isLast) {
+                applyRegeneration(gameState.playerColor === 'w' ? 'b' : 'w');
+                showTurnBanner(false);
+            }
             gameState.selectedPiece = null;
             updateUI(); render();
             return; 
@@ -792,13 +850,17 @@ export function movePiece(fr, fc, tr, tc) {
         return; 
     }
 
+    const isLast = (gameState.actionsLeft <= 0 && !gameState.isAdminMode);
     sendNetworkMessage({ 
         type: 'move', from: {r:fr, c:fc}, to: {r:tr, c:tc}, 
-        isLast: (gameState.actionsLeft <= 0 && !gameState.isAdminMode), win: isWinMove, 
+        isLast: isLast, win: isWinMove, 
         freeMoveUsed: !costsAP 
     });
 
-    if(gameState.actionsLeft <= 0 && !gameState.isAdminMode) showTurnBanner(false);
+    if(isLast) {
+        applyRegeneration(gameState.playerColor === 'w' ? 'b' : 'w');
+        showTurnBanner(false);
+    }
     gameState.selectedPiece = null; 
     updateUI(); render();
 }
