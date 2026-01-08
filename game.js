@@ -1,9 +1,7 @@
 import { gameState } from './state.js';
 import { BUILDING_COSTS, BUILDING_LIMITS, FORTRESS_HP, BUILDINGS, PIECE_URLS, BUILDING_ICONS } from './constants.js';
 import { sendNetworkMessage } from './network.js';
-import { updateUI, render, recalcBoard, showToast, hasSpecial, isFog, isUpgradedUnit, openAcademyModal, closeModal, showPromotionModal, endGame, initDrag, dragState, showTurnBanner, playSlashAnimation, openCampModal, openWorkshopModal, openProductionModal, openMageTowerModal, playMagicShot } from './ui.js';
-
-// ... initBoard, handleData ... (ВНИМАНИЕ: обновлены handleData, turnEndLogic и applyRegeneration)
+import { updateUI, render, recalcBoard, showToast, hasSpecial, isFog, isUpgradedUnit, openAcademyModal, closeModal, showPromotionModal, endGame, initDrag, dragState, showTurnBanner, playSlashAnimation, openCampModal, openWorkshopModal, openProductionModal, openMageTowerModal, playMagicShot, openTorpedoModal } from './ui.js';
 
 export function initBoard() {
     gameState.playerColor = gameState.myColor;
@@ -34,10 +32,10 @@ export function handleData(d) {
         if (d.win) endGame(false);
     } else if (d.type === 'attack_hit') {
         if (gameState.board[d.r][d.c]) gameState.board[d.r][d.c].hp = d.hp;
-        gameState.lastOpponentMove = { from: d.from || {r:d.r, c:d.c}, to: {r:d.r, c:d.c}, isCapture: true }; 
+        gameState.lastOpponentMove = { from: d.from, to: {r:d.r, c:d.c}, isCapture: true }; 
     } else if (d.type === 'attack_armor') {
         if (gameState.board[d.r][d.c]) gameState.board[d.r][d.c].armor = d.armor;
-        gameState.lastOpponentMove = { from: d.from || {r:d.r, c:d.c}, to: {r:d.r, c:d.c}, isCapture: true };
+        gameState.lastOpponentMove = { from: d.from, to: {r:d.r, c:d.c}, isCapture: true };
     } else if (d.type === 'attack_shoot') {
         const target = gameState.board[d.r][d.c];
         if(target) {
@@ -71,6 +69,8 @@ export function handleData(d) {
         if (d.buildType === 'hq_t3') obj.armor = 2;
         if (d.buildType === 'hq_t4') obj.armor = 3;
         if (d.buildType === 'ram') obj.armor = 1;
+        if (d.buildType === 'torpedo') obj.armor = 10;
+        
         gameState.board[d.r][d.c] = obj;
         gameState.lastOpponentMove = { type: 'build', r: d.r, c: d.c };
     } else if (d.type === 'upgrade') {
@@ -87,18 +87,27 @@ export function handleData(d) {
     } else if (d.type === 'apogee_trigger') {
         playSlashAnimation();
         setTimeout(() => triggerExpansion(), 700);
+    } else if (d.type === 'pass') {
+        showToast("ПРОТИВНИК ПРОПУСТИЛ ХОД");
     }
-    // УБРАНО: regen_sync. Мы доверяем локальному расчету.
     
     if (d.isLast) {
-         // Сообщение "isLast" от противника -> значит сейчас МОЙ ход.
-         // Я запускаю turnEndLogic, которая полечит МЕНЯ.
          turnEndLogic();
          showTurnBanner(true);
     } else if (d.type !== 'build' && d.type !== 'upgrade' && d.type !== 'demolish') {
          render();
     }
     render(); updateUI();
+}
+
+export function passTurn() {
+    if (!gameState.isAdminMode && gameState.playerColor !== gameState.myColor) return;
+    
+    gameState.actionsLeft = 0;
+    sendNetworkMessage({ type: 'pass', isLast: true });
+    applyRegeneration(gameState.playerColor === 'w' ? 'b' : 'w');
+    showTurnBanner(false);
+    updateUI(); render();
 }
 
 export function turnEndLogic() {
@@ -122,16 +131,11 @@ export function turnEndLogic() {
     });
 
     collectResources();
-    // Начало МОЕГО хода -> лечим МЕНЯ (gameState.playerColor)
     applyRegeneration(gameState.playerColor);
 }
 
-// ... getMaxResourceLimit, collectResources ...
-
-// ИЗМЕНЕНО: Функция теперь принимает цвет, кого лечить
 function applyRegeneration(targetColor) {
     const enemyRams = [];
-    // Враг для "targetColor"
     const enemyColor = (targetColor === 'w' ? 'b' : 'w');
 
     for(let r=0; r<gameState.rows; r++) {
@@ -146,15 +150,11 @@ function applyRegeneration(targetColor) {
     for(let r=0; r<gameState.rows; r++) {
         for(let c=0; c<gameState.cols; c++) {
             const p = gameState.board[r][c];
-            // Если фигура принадлежит тому, кого мы сейчас лечим (targetColor)
             if (p && p.color === targetColor) {
                 let canRegen = true;
-                
-                // ИСПРАВЛЕНО: Таран блокирует лечение только вплотную (8 клеток вокруг)
                 for (let ram of enemyRams) {
                     const dr = Math.abs(r - ram.r);
                     const dc = Math.abs(c - ram.c);
-                    // Если таран на соседней клетке (дистанция <= 1)
                     if (dr <= 1 && dc <= 1) { 
                         canRegen = false; 
                         break; 
@@ -215,7 +215,6 @@ export function buildSomething(r, c, type) {
     let apCost = 2;
     if (type === 'lumber' || type === 'mine' || type === 'demolish' || type === 'hq' || type === 'barricade') apCost = 1;
 
-    // ADMIN: Игнор ОД
     if (gameState.isAdminMode) apCost = 0; 
     if (!gameState.isAdminMode && gameState.actionsLeft < apCost) { showToast(`НУЖНО ${apCost} ОД.`); return; }
 
@@ -231,8 +230,6 @@ export function buildSomething(r, c, type) {
         const isLast = (gameState.actionsLeft<=0 && !gameState.isAdminMode);
         sendNetworkMessage({ type: 'demolish', r, c, isLast: isLast });
         if(isLast) {
-            // КОНЕЦ МОЕГО ХОДА -> Начинается ход противника.
-            // Я должен полечить ПРОТИВНИКА у себя на экране, чтобы наши данные совпали.
             applyRegeneration(gameState.playerColor === 'w' ? 'b' : 'w');
             showTurnBanner(false);
         }
@@ -244,7 +241,6 @@ export function buildSomething(r, c, type) {
     const isUpgrade = type.endsWith('_t2') || type.endsWith('_t3') || type.endsWith('_t4');
 
     if (isUpgrade) {
-        // ... проверка базы для апгрейда (без изменений) ...
         let requiredType = '';
         let baseType = '';
         if (type === 'hq_t2') requiredType = 'hq';
@@ -320,7 +316,7 @@ export function getBuildingCount(baseType) {
 }
 
 function checkResources(cost) {
-    if (gameState.isAdminMode) return true; // ADMIN: Бесплатно
+    if (gameState.isAdminMode) return true; 
     const r = gameState.myResources;
     if ((r.wood||0) < cost.wood || (r.stone||0) < cost.stone || 
         (r.metal||0) < cost.metal || (r.cedar||0) < cost.cedar ||
@@ -335,7 +331,7 @@ function checkResources(cost) {
 }
 
 function payResources(cost) {
-    if (gameState.isAdminMode) return; // ADMIN: Не тратим
+    if (gameState.isAdminMode) return;
     const r = gameState.myResources;
     r.wood = (r.wood||0) - cost.wood;
     r.stone = (r.stone||0) - cost.stone;
@@ -350,7 +346,6 @@ function payResources(cost) {
     r.mana_gem = (r.mana_gem||0) - cost.mana_gem;
 }
 
-// ... activateApogee, triggerExpansion ... (без изменений)
 export function activateApogee() {
     if (gameState.isExpanded) return;
     playSlashAnimation();
@@ -460,18 +455,13 @@ export function finishWorkshopBuild(unitType) {
     const cost = { wood: 4, cedar: 4, metal: 2, stone:0, paper:0, food:0, gem:0, coal:0, polymer:0, uranium:0, chemical:0, mana_gem:0 };
     if (!checkResources(cost)) return;
 
-    // target - это координата мастерской
-    // from - это координата пешки, которая вошла в мастерскую
     const { from, target } = gameState.pendingInteraction; 
-
-    // Вычисляем координату ПЕРЕД мастерской
     const dir = gameState.playerColor === 'w' ? -1 : 1;
     const spawnR = target.r + dir;
     const spawnC = target.c;
 
-    // Проверяем, свободна ли клетка
     if (spawnR < 0 || spawnR >= gameState.rows || gameState.board[spawnR][spawnC]) {
-        showToast("ВЫХОД ЗАБЛОКИРОВАН! (Клетка перед мастерской занята)");
+        showToast("ВЫХОД ЗАБЛОКИРОВАН!");
         closeModal('workshop-modal');
         return;
     }
@@ -479,14 +469,10 @@ export function finishWorkshopBuild(unitType) {
     payResources(cost);
     if(!gameState.isAdminMode) gameState.actionsLeft--;
     
-    // Пешка-строитель исчезает (она вошла в мастерскую и начала производство)
     gameState.board[from.r][from.c] = null;
-
-    // ИЗМЕНЕНО: Таран rank 1. НЕ ЭЛИТНЫЙ.
     gameState.board[spawnR][spawnC] = { type: 'ram', color: gameState.playerColor, moved: true, armor: 1, movedThisTurn: true, rank: 1 };
     
     const isLast = (gameState.actionsLeft <= 0 && !gameState.isAdminMode);
-    // Отправляем transform с координатами: from (пешка) -> to (спавн тарана)
     sendNetworkMessage({ type: 'transform', from: from, to: {r: spawnR, c: spawnC}, newType: 'ram', isLast: isLast });
     
     if(isLast) {
@@ -494,6 +480,43 @@ export function finishWorkshopBuild(unitType) {
         showTurnBanner(false);
     }
     closeModal('workshop-modal');
+    updateUI(); render();
+}
+
+export function finishTorpedoBuild() {
+    if (!gameState.isAdminMode && gameState.actionsLeft < 1) { showToast("НУЖНО 1 ОД!"); return; }
+
+    const cost = { metal: 10, uranium: 5, wood: 0, stone:0, paper:0, food:0, gem:0, coal:0, polymer:0, chemical:0, mana_gem:0, cedar: 0 };
+    if (!checkResources(cost)) return;
+
+    const { from, target } = gameState.pendingInteraction; 
+    const dir = gameState.playerColor === 'w' ? -1 : 1;
+    const spawnR = target.r + dir;
+    const spawnC = target.c;
+
+    if (spawnR < 0 || spawnR >= gameState.rows || gameState.board[spawnR][spawnC]) {
+        showToast("ВЫХОД ЗАБЛОКИРОВАН!");
+        closeModal('torpedo-modal');
+        return;
+    }
+
+    payResources(cost);
+    if(!gameState.isAdminMode) gameState.actionsLeft--;
+    
+    // ВАЖНО: ИНИЦИАТОР (Пешка или Король) НЕ УДАЛЯЕТСЯ
+    
+    // Создаем торпеду на выходе
+    gameState.board[spawnR][spawnC] = { type: 'torpedo', color: gameState.playerColor, moved: true, armor: 10, movedThisTurn: true, rank: 1 };
+    
+    const isLast = (gameState.actionsLeft <= 0 && !gameState.isAdminMode);
+    // Используем 'build', чтобы просто заспавнить объект
+    sendNetworkMessage({ type: 'build', r: spawnR, c: spawnC, buildType: 'torpedo', isLast: isLast });
+    
+    if(isLast) {
+        applyRegeneration(gameState.playerColor === 'w' ? 'b' : 'w');
+        showTurnBanner(false);
+    }
+    closeModal('torpedo-modal');
     updateUI(); render();
 }
 
@@ -513,7 +536,6 @@ export function finishAcademyRecruit(newType, paperCost) {
     }
 
     if(!gameState.isAdminMode) gameState.myResources.paper -= paperCost;
-    
     gameState.board[from.r][from.c] = null;
 
     const isElite = newType.endsWith('_2');
@@ -543,7 +565,6 @@ export function processProduction() {
     const maxLimit = getMaxResourceLimit();
     let success = false;
 
-    // В Админ моде просто производим
     if (gameState.isAdminMode) {
         if (type === 'jeweler') gameState.myResources.mana_gem = (gameState.myResources.mana_gem || 0) + 1;
         else if (type === 'papermill') gameState.myResources.paper = (gameState.myResources.paper || 0) + 1;
@@ -568,20 +589,16 @@ export function processProduction() {
     if(success) {
         updateUI(); 
         render();
-        openProductionModal(type); // Обновить UI модалки
+        openProductionModal(type); 
         showToast("ПРОИЗВЕДЕНО!");
     }
 }
 
-// Новая функция активации башни пешкой
 export function activateMageTowerMode() {
-    // 1. Проверка ресурсов (ничего не тратим)
     if (!gameState.isAdminMode && gameState.actionsLeft < 1) { showToast("НУЖНО 1 ОД!"); return; }
     if (!gameState.isAdminMode && (gameState.myResources.mana_gem || 0) < 1) { showToast("НУЖЕН 1 САМОЦВЕТ!"); return; }
 
-    const { target } = gameState.pendingInteraction; // target - это координаты башни
-
-    // 2. Проверка наличия целей в радиусе 2 ПЕРЕД активацией
+    const { target } = gameState.pendingInteraction; 
     let foundTarget = false;
     const tR = target.r;
     const tC = target.c;
@@ -590,7 +607,6 @@ export function activateMageTowerMode() {
         for(let c = tC - 2; c <= tC + 2; c++) {
             if(r >= 0 && r < gameState.rows && c >= 0 && c < gameState.cols) {
                 const p = gameState.board[r][c];
-                // Если есть фигура и она вражеская
                 if (p && p.color !== gameState.playerColor) {
                     foundTarget = true;
                     break;
@@ -602,14 +618,11 @@ export function activateMageTowerMode() {
 
     if (!foundTarget) {
         showToast("НЕТ ЦЕЛЕЙ В РАДИУСЕ ПОРАЖЕНИЯ!");
-        return; // Не входим в режим, если стрелять не в кого
+        return; 
     }
-
-    // 3. Включаем режим прицеливания
-    // ПЕШКУ НЕ ТРОГАЕМ (удалена строка gameState.board[from.r][from.c] = null)
     
     gameState.isTargetingMode = true;
-    gameState.targetingSource = {r: target.r, c: target.c}; // Источник - башня
+    gameState.targetingSource = {r: target.r, c: target.c}; 
     
     closeModal('magetower-modal');
     showToast("ВЫБЕРИТЕ ЦЕЛЬ (РАДИУС 2)");
@@ -617,7 +630,6 @@ export function activateMageTowerMode() {
 }
 
 export function shootMageTower(targetR, targetC) {
-    // 1. Финальная проверка ресурсов перед выстрелом
     if (!gameState.isAdminMode && gameState.actionsLeft < 1) { showToast("НЕДОСТАТОЧНО ОД!"); return; }
     if (!gameState.isAdminMode && (gameState.myResources.mana_gem || 0) < 1) { showToast("НЕТ САМОЦВЕТА!"); return; }
 
@@ -626,25 +638,20 @@ export function shootMageTower(targetR, targetC) {
     if (dist > 2) { showToast("СЛИШКОМ ДАЛЕКО!"); return; }
 
     const targetUnit = gameState.board[targetR][targetC];
-    // Стрелять можно только во врага (или в пустую клетку, если так вышло, но лучше во врага)
     if (!targetUnit || targetUnit.color === gameState.playerColor) {
         showToast("НЕВЕРНАЯ ЦЕЛЬ!");
         return;
     }
 
-    // 2. СПИСАНИЕ РЕСУРСОВ (Только сейчас)
     if(!gameState.isAdminMode) {
         gameState.myResources.mana_gem -= 1;
         gameState.actionsLeft--;
     }
 
-    // 3. Логика урона
     if(targetUnit.armor > 0) targetUnit.armor = Math.max(0, targetUnit.armor - 1);
     else if(targetUnit.hp > 0) targetUnit.hp = Math.max(0, targetUnit.hp - 1);
     else gameState.board[targetR][targetC] = null; 
 
-    // 4. Анимация и сеть
-    // Используем playMagicShot из ui.js (убедись, что там обновленная версия с position:fixed)
     playMagicShot(tower.r, tower.c, targetR, targetC);
     
     const isLast = (gameState.actionsLeft <= 0 && !gameState.isAdminMode);
@@ -656,7 +663,6 @@ export function shootMageTower(targetR, targetC) {
         isLast: isLast 
     });
     
-    // Сброс режимов
     gameState.isTargetingMode = false;
     gameState.targetingSource = null;
     gameState.pendingInteraction = null;
@@ -667,8 +673,6 @@ export function shootMageTower(targetR, targetC) {
     }
     updateUI(); render();
 }
-
-// ... finishPromotion, isValidMove ... (без изменений, кроме того что в movePiece надо добавить проверку)
 
 export function finishPromotion(newType) {
     document.getElementById('promotion-modal').classList.add('hidden');
@@ -687,7 +691,6 @@ export function finishPromotion(newType) {
 }
 
 export function isValidMove(fr, fc, tr, tc) {
-    // В режиме админа можно ходить даже с 0 ОД
     if (gameState.actionsLeft <= 0 && !gameState.isAdminMode) return false;
 
     if (tr < 0 || tr >= gameState.rows || tc < 0 || tc >= gameState.cols) return false;
@@ -710,10 +713,25 @@ export function isValidMove(fr, fc, tr, tc) {
         }
     }
 
+    // ВХОД В ЗДАНИЯ (АКТИВАЦИЯ)
     if (dest && dest.color === p.color) {
-        if (p.type === 'p') {
-            // ДОБАВЛЕНО: magetower
-            if (['academy', 'academy_t2', 'workshop', 'jeweler', 'papermill', 'camp', 'magetower'].includes(dest.type)) return true;
+        if (p.type === 'p' || p.type === 'k') { 
+            const interactive = ['academy', 'academy_t2', 'workshop', 'jeweler', 'papermill', 'camp', 'magetower', 'torpedo_tower'];
+            if (interactive.includes(dest.type)) {
+                // ПРОВЕРКА ЗОН (АКТИВАЦИЯ ТОЛЬКО В СВОЕЙ ЗОНЕ)
+                if (gameState.isExpanded) {
+                    const getZone = (r) => {
+                        if (r < 4) return 1; // База
+                        if (r > 11) return 3; // Вражеская база
+                        return 2; // Туман
+                    };
+                    const z1 = getZone(fr);
+                    const z2 = getZone(tr);
+                    // Если зоны разные - активация невозможна (дистанционная)
+                    if (z1 !== z2) return false;
+                }
+                return true;
+            }
         }
         return false; 
     }
@@ -726,14 +744,17 @@ export function isValidMove(fr, fc, tr, tc) {
          if (adr <= 1 && adc <= 1) return true;
          return false;
     }
+    
+    if (p.type === 'torpedo') {
+        const dir = p.color === 'w' ? -1 : 1;
+        if (dc === 0 && dr === dir) return true;
+        return false;
+    }
 
     switch(baseType) {
         case 'p':
             const dir = p.color === 'w' ? -1 : 1;
-            // ДОБАВЛЕНО: magetower
-            if (dest && ['academy', 'academy_t2', 'workshop', 'jeweler', 'papermill', 'camp', 'magetower'].includes(dest.type) && dest.color === p.color) {
-                return true; 
-            }
+            // Активация уже проверена выше, здесь стандартное движение
             if (dc === 0 && !dest && dr === dir) return true;
             if (dc === 0 && !dest && !p.moved && dr === 2 * dir) {
                 if (!gameState.board[fr + dir][fc]) return true;
@@ -744,7 +765,8 @@ export function isValidMove(fr, fc, tr, tc) {
         case 'b': if (adr !== adc) return false; return isPathClear(fr, fc, tr, tc);
         case 'r': if (dr !== 0 && dc !== 0) return false; return isPathClear(fr, fc, tr, tc);
         case 'q': if (!(adr === adc || dr === 0 || dc === 0)) return false; return isPathClear(fr, fc, tr, tc);
-        case 'k': return (adr <= 1 && adc <= 1); 
+        case 'k': 
+             return (adr <= 1 && adc <= 1); 
     }
     return false;
 }
@@ -760,12 +782,11 @@ function isPathClear(fr, fc, tr, tc) {
 }
 
 export function movePiece(fr, fc, tr, tc) {
-    // В админ моде всегда пускаем
-    // ...
     const piece = gameState.board[fr][fc];
     const dest = gameState.board[tr][tc];
 
-    if (dest && dest.color === piece.color && piece.type === 'p') {
+    // ВХОД В ЗДАНИЯ
+    if (dest && dest.color === piece.color && (piece.type === 'p' || piece.type === 'k')) {
         if (dest.type === 'camp') {
             openCampModal(fr, fc, tr, tc); 
             return;
@@ -783,26 +804,28 @@ export function movePiece(fr, fc, tr, tc) {
             openProductionModal(dest.type);
             return;
         }
-        // НОВОЕ: Обработка входа в Башню Мага
         if (dest.type === 'magetower') {
             openMageTowerModal(fr, fc, tr, tc);
+            return;
+        }
+        if (dest.type === 'torpedo_tower') {
+            openTorpedoModal(fr, fc, tr, tc);
             return;
         }
     }
 
     if (dest && dest.color !== piece.color) {
-        // ИЗМЕНЕНО: Таран наносит 2 урона ТОЛЬКО по броне.
-        // Если брони нет (или она 0), наносится 1 урон по HP.
         let dmg = 1; 
+        if (piece.type === 'ram') dmg = 2;
+        if (piece.type === 'torpedo') dmg = 10;
         
         if (dest.armor !== undefined && dest.armor > 0) {
-            if (piece.type === 'ram') dmg = 2;
             dest.armor = Math.max(0, dest.armor - dmg);
             
             piece.movedThisTurn = true;
             if(!gameState.isAdminMode) gameState.actionsLeft--;
             const isLast = (gameState.actionsLeft<=0 && !gameState.isAdminMode);
-            sendNetworkMessage({ type: 'attack_armor', r: tr, c: tc, armor: dest.armor, isLast: isLast });
+            sendNetworkMessage({ type: 'attack_armor', from: {r:fr, c:fc}, r: tr, c: tc, armor: dest.armor, isLast: isLast });
             if(isLast) {
                 applyRegeneration(gameState.playerColor === 'w' ? 'b' : 'w');
                 showTurnBanner(false);
@@ -813,12 +836,11 @@ export function movePiece(fr, fc, tr, tc) {
         }
 
         if (dest.hp !== undefined && dest.hp > 0) {
-            // По HP таран бьет как обычная фигура (1 урон)
-            dest.hp = Math.max(0, dest.hp - 1);
+            dest.hp = Math.max(0, dest.hp - dmg);
             if (piece.type !== 'p' || piece.rank !== 2) piece.movedThisTurn = true; 
             if(!gameState.isAdminMode) gameState.actionsLeft--;
             const isLast = (gameState.actionsLeft<=0 && !gameState.isAdminMode);
-            sendNetworkMessage({ type: 'attack_hit', r: tr, c: tc, hp: dest.hp, isLast: isLast });
+            sendNetworkMessage({ type: 'attack_hit', from: {r:fr, c:fc}, r: tr, c: tc, hp: dest.hp, isLast: isLast });
             if(isLast) {
                 applyRegeneration(gameState.playerColor === 'w' ? 'b' : 'w');
                 showTurnBanner(false);
@@ -865,15 +887,12 @@ export function movePiece(fr, fc, tr, tc) {
     updateUI(); render();
 }
 
-// ... onPiecePointerDown, onSidebarPointerDown (без изменений) ...
-
 export function isNearOwnPiece(r, c, type) {
-    if (gameState.isAdminMode) return true; // ADMIN: Строй где хочешь
+    if (gameState.isAdminMode) return true;
 
     if (gameState.board[r][c] && gameState.board[r][c].color === gameState.playerColor && (type.endsWith('_t2') || type.endsWith('_t3') || type.endsWith('_t4') || type === 'academy')) return true;
     if (gameState.board[r][c]) return false; 
     
-    const targetIsFog = isFog(r, c);
     for(let dr = -1; dr <= 1; dr++) {
         for(let dc = -1; dc <= 1; dc++) {
             const nr = r + dr, nc = c + dc;
@@ -882,11 +901,11 @@ export function isNearOwnPiece(r, c, type) {
                 if (neighbor && neighbor.color === gameState.playerColor) {
                     const neighborIsBuilding = BUILDINGS.includes(neighbor.type);
                     if (type.startsWith('fortress') || type === 'barricade') {
-                         if (targetIsFog === isFog(nr, nc)) return true;
+                         return true; 
                     } 
                     else {
                         if (!neighborIsBuilding) {
-                             if (targetIsFog === isFog(nr, nc)) return true;
+                             return true;
                         }
                     }
                 }
@@ -895,6 +914,7 @@ export function isNearOwnPiece(r, c, type) {
     }
     return false;
 }
+
 export function onPiecePointerDown(e, fr, fc) {
     if (gameState.gameOver || !gameState.currentRoom || (!gameState.isAdminMode && gameState.actionsLeft <= 0)) return;
     
@@ -925,13 +945,17 @@ export function onPiecePointerDown(e, fr, fc) {
     dragState.isBuildingDrag = false;
     dragState.from = { r: fr, c: fc };
     const baseType = p.type.replace('_2', '');
-    const bg = p.type === 'ram' ? `url(${PIECE_URLS[p.color+'ram']})` : `url(${PIECE_URLS[p.color + baseType]})`;
+    
+    let bg;
+    if (p.type === 'ram') bg = `url(${PIECE_URLS[p.color+'ram']})`;
+    else if (p.type === 'torpedo') bg = `url(${PIECE_URLS[p.color+'torpedo']})`;
+    else bg = `url(${PIECE_URLS[p.color + baseType]})`;
+    
     initDrag(e, bg);
     
     render(); 
 }
 export function onSidebarPointerDown(e, type) {
-    // В админке можно строить даже без ОД
     if (gameState.gameOver || !gameState.currentRoom || (!gameState.isAdminMode && gameState.actionsLeft <= 0) || !gameState.isBuildMode) return;
     dragState.isBuildingDrag = true;
     dragState.from = { type: type };

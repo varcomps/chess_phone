@@ -21,8 +21,7 @@
 <div id="camp-modal" class="modal-overlay hidden">
     <div class="modal-content">
         <h2 style="color: #2ecc71; margin:0 0 10px 0;">ЛАГЕРЬ</h2>
-        <div class="promo-options" id="camp-options">
-            </div>
+        <div class="promo-options" id="camp-options"></div>
         <button class="btn-cancel" onclick="closeModal('camp-modal')">ЗАКРЫТЬ</button>
     </div>
 </div>
@@ -30,8 +29,7 @@
 <div id="academy-modal" class="modal-overlay hidden">
     <div class="modal-content">
         <h2 style="color: #f1c40f; margin:0 0 10px 0;">АКАДЕМИЯ</h2>
-        <div id="academy-content">
-            </div>
+        <div id="academy-content"></div>
         <button class="btn-cancel" onclick="closeModal('academy-modal')">ЗАКРЫТЬ</button>
     </div>
 </div>
@@ -39,33 +37,30 @@
 <div id="workshop-modal" class="modal-overlay hidden">
     <div class="modal-content">
         <h2 style="color: #e67e22; margin:0 0 10px 0;">МАСТЕРСКАЯ</h2>
-        <div class="promo-options">
-            <div class="promo-btn" onclick="finishWorkshopBuild('ram')">
-                <div class="btn-main-text">🐏 ТАРАН</div>
-                <div class="res-cost-row">
-                    <div class="res-single">🌲4</div>
-                    <div class="res-single">🍁4</div>
-                    <div class="res-single">🔩2</div>
-                </div>
-            </div>
-        </div>
+        <div class="promo-options"></div>
         <button class="btn-cancel" onclick="closeModal('workshop-modal')">ЗАКРЫТЬ</button>
+    </div>
+</div>
+
+<div id="torpedo-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <h2 style="color: #e74c3c; margin:0 0 10px 0;">ТОРПЕДНЫЙ ОТСЕК</h2>
+        <div class="promo-options"></div>
+        <button class="btn-cancel" onclick="closeModal('torpedo-modal')">ЗАКРЫТЬ</button>
     </div>
 </div>
 
 <div id="production-modal" class="modal-overlay hidden">
     <div class="modal-content">
         <h2 id="prod-title" style="color: #3498db; margin:0 0 10px 0;">ПРОИЗВОДСТВО</h2>
-        <div class="promo-options" id="prod-options">
-            </div>
+        <div class="promo-options" id="prod-options"></div>
         <button class="btn-cancel" onclick="closeModal('production-modal')">ЗАКРЫТЬ</button>
     </div>
 </div>
 <div id="magetower-modal" class="modal-overlay hidden">
     <div class="modal-content">
         <h2 style="color: #9b59b6; margin:0 0 10px 0;">БАШНЯ МАГА</h2>
-        <div class="promo-options" id="magetower-options">
-        </div>
+        <div class="promo-options" id="magetower-options"></div>
         <button class="btn-cancel" onclick="closeModal('magetower-modal')">ЗАКРЫТЬ</button>
     </div>
 </div>
@@ -134,6 +129,8 @@
 
             <button id="btn-apogee" onclick="activateApogee()">☄️ АПОГЕЙ</button>
             <button id="btn-admin-toggle" onclick="toggleAdminMode()">🛠️ ADMIN: OFF</button>
+            
+            <button id="btn-pass-turn" onclick="passTurn()" style="display:none; background: #e74c3c; margin-top:5px; box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4);">ЗАКОНЧИТЬ ХОД</button>
         </div>
     </div>
 
@@ -190,6 +187,7 @@
             <div class="build-item t4-item" data-type="lumber_t4" data-label="СИНТЕЗАТОР (T4)" data-desc="Добыча: 4Дер, 3Кедр, 2Пол, 1Реактив." data-cost="4Д, 4К, 4Кедр, 4М, 2Алм, 4Пол | 2 ОД" onpointerdown="onSidebarPointerDown(event, 'lumber_t4')"><span class="icon">☣️</span></div>
             <div class="build-item t4-item" data-type="mine_t4" data-label="ЯДРО (T4)" data-desc="Добыча: 4Кам, 3Мет, 2Алм, 1Уран." data-cost="4К, 4Д, 4Кедр, 4М, 4Алм, 2Пол | 2 ОД" onpointerdown="onSidebarPointerDown(event, 'mine_t4')"><span class="icon">⚛️</span></div>
             <div class="build-item t4-item" data-type="fortress_t3" data-label="ЦИТАДЕЛЬ (T4)" data-desc="8 HP. Реген 2 HP." data-cost="5К, 5М, 5Алм, 2Уран... | 2 ОД" onpointerdown="onSidebarPointerDown(event, 'fortress_t3')"><span class="icon">🛡️</span></div>
+            <div class="build-item t4-item" data-type="torpedo_tower" data-label="ПУСКОВАЯ ШАХТА" data-desc="Создает торпеды." data-cost="5 Всех (без еды) | 2 ОД" onpointerdown="onSidebarPointerDown(event, 'torpedo_tower')"><span class="icon">🚀</span></div>
         </div>
     </div>
 </div>

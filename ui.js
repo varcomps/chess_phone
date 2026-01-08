@@ -1,8 +1,7 @@
 import { gameState } from './state.js';
 import { PIECE_URLS, BUILDING_ICONS, BUILDINGS, T2_BUILDINGS, T3_BUILDINGS, T4_BUILDINGS, FORTRESS_HP, BUILDING_LIMITS } from './constants.js';
-import { onPiecePointerDown, buildSomething, isNearOwnPiece, movePiece, isValidMove, finishAcademyRecruit, getBuildingCount, getMaxResourceLimit, recruitPawn, finishWorkshopBuild, processProduction, activateMageTowerMode } from './game.js';
+import { onPiecePointerDown, buildSomething, isNearOwnPiece, movePiece, isValidMove, finishAcademyRecruit, getBuildingCount, getMaxResourceLimit, recruitPawn, finishWorkshopBuild, processProduction, activateMageTowerMode, finishTorpedoBuild, passTurn } from './game.js';
 
-// ... (dragState и прокси-функции остаются без изменений) ...
 export const dragState = {
     started: false, cloneEl: null, from: null, isBuildingDrag: false,
     pointerId: null, startX: 0, startY: 0, lastHover: null
@@ -12,8 +11,9 @@ window.finishCampRecruit = recruitPawn;
 window.finishWorkshopBuild = finishWorkshopBuild;
 window.processProduction = processProduction;
 window.activateMageTowerMode = activateMageTowerMode;
+window.finishTorpedoBuild = finishTorpedoBuild;
+window.passTurn = passTurn; 
 
-// --- ТЕРМИНАЛ И АДМИНКА ---
 window.toggleAdminMode = function() {
     gameState.isAdminMode = !gameState.isAdminMode;
     const btn = document.getElementById('btn-admin-toggle');
@@ -72,17 +72,10 @@ export function playSlashAnimation() {
     }
 }
 
-// ИСПРАВЛЕНО: Анимация выстрела через .animate() (более надежно)
-// Вставь это в ui.js вместо старой playMagicShot
-
 export function playMagicShot(fromR, fromC, toR, toC) {
-    // Используем document.body, чтобы избежать проблем с overflow:hidden или relative координатами внутри board
-    
-    // Функция получения точных координат центра клетки на экране
     const getScreenPos = (r, c) => {
         const visualRow = (gameState.playerColor === 'b') ? (gameState.rows - 1 - r) : r;
         const visualCol = c;
-        // Находим нужный DOM элемент клетки по индексу
         const idx = (visualRow * gameState.cols) + visualCol;
         const squares = document.querySelectorAll('.square');
         if (squares[idx]) {
@@ -92,56 +85,45 @@ export function playMagicShot(fromR, fromC, toR, toC) {
                 y: rect.top + (rect.height / 2)
             };
         }
-        return {x: window.innerWidth / 2, y: window.innerHeight / 2}; // Фолбек
+        return {x: window.innerWidth / 2, y: window.innerHeight / 2}; 
     };
 
     const start = getScreenPos(fromR, fromC);
     const end = getScreenPos(toR, toC);
 
-    // Создаем снаряд
     const ball = document.createElement('div');
     ball.className = 'magic-missile';
     
-    // ВАЖНО: Стили для корректного позиционирования
-    ball.style.position = 'fixed'; // Фиксируем относительно окна
+    ball.style.position = 'fixed'; 
     ball.style.top = '0';
     ball.style.left = '0';
-    ball.style.zIndex = '10000'; // Поверх всего
-    ball.style.transform = `translate(${start.x}px, ${start.y}px)`; // Начальная позиция
+    ball.style.zIndex = '10000'; 
+    ball.style.transform = `translate(${start.x}px, ${start.y}px)`; 
     
     document.body.appendChild(ball);
 
-    // Вычисляем дельту для анимации
     const deltaX = end.x - start.x;
     const deltaY = end.y - start.y;
 
-    // Анимация полета
     const animation = ball.animate([
         { transform: `translate(${start.x}px, ${start.y}px) scale(1)`, opacity: 1 },
         { transform: `translate(${start.x + deltaX}px, ${start.y + deltaY}px) scale(1.5)`, opacity: 1 }
     ], {
-        duration: 500, // Чуть медленнее, чтобы было заметно
+        duration: 500, 
         easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
         fill: 'forwards'
     });
 
     animation.onfinish = () => {
         ball.remove();
-        
-        // Эффект взрыва (hit)
         const hit = document.createElement('div');
         hit.className = 'magic-hit';
         hit.style.position = 'fixed';
-        hit.style.left = (end.x - 20) + 'px'; // Центрируем (-20 половина от 40px ширины magic-hit)
+        hit.style.left = (end.x - 20) + 'px'; 
         hit.style.top = (end.y - 20) + 'px';
         hit.style.zIndex = '9999';
-        
         document.body.appendChild(hit);
-        
-        // Удаляем взрыв после анимации CSS
-        setTimeout(() => { 
-            hit.remove(); 
-        }, 600);
+        setTimeout(() => { hit.remove(); }, 600);
     };
 }
 
@@ -258,6 +240,11 @@ export function render() {
                     if (p.type === 'ram') {
                         pDiv.style.backgroundImage = `url(${PIECE_URLS[p.color + 'ram']})`;
                         pDiv.style.filter = "drop-shadow(2px 4px 6px rgba(0,0,0,0.5))"; 
+                    } else if (p.type === 'torpedo') {
+                        pDiv.style.backgroundImage = `url(${PIECE_URLS[p.color + 'torpedo']})`;
+                        pDiv.style.filter = "drop-shadow(0 0 5px red)";
+                        const rot = p.color === 'w' ? '0deg' : '180deg';
+                        pDiv.style.transform = `rotate(${rot})`;
                     } else {
                         pDiv.style.backgroundImage = `url(${PIECE_URLS[p.color + baseType]})`;
                     }
@@ -268,6 +255,7 @@ export function render() {
                         const badge = document.createElement('div');
                         badge.className = 'shield-badge';
                         badge.innerText = p.armor;
+                        if (p.type === 'torpedo') badge.style.transform = p.color === 'w' ? '' : 'rotate(180deg)';
                         pDiv.appendChild(badge);
                     }
                     pDiv.addEventListener('pointerdown', (e) => { e.stopPropagation(); onPiecePointerDown(e, r, c); });
@@ -323,6 +311,8 @@ function updateResourcePanel() {
     }
 }
 function drawArrow(boardEl, move) {
+    if (!move.from || !move.to) return; // Защита от отсутствия координат
+
     const sqSize = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sq-size'));
     const isWhite = gameState.playerColor === 'w';
     const getVisualPos = (r, c) => {
@@ -377,11 +367,17 @@ export function updateUI() {
     const hasHQ3 = hasSpecial(gameState.playerColor, 'hq_t3');
     const hasHQ4 = hasSpecial(gameState.playerColor, 'hq_t4');
     const isAlive = hasHQ || hasHQ2 || hasHQ3 || hasHQ4;
+    
+    // ЛОГИКА ОТОБРАЖЕНИЯ СТАТУСА
     if (statusEl) {
         if (gameState.isAdminMode) statusEl.textContent = "РЕЖИМ БОГА";
-        else if (gameState.actionsLeft > 0) statusEl.textContent = isAlive ? `ТВОЙ ХОД (${gameState.actionsLeft} ОД)` : "ТВОЙ ХОД";
-        else statusEl.textContent = "ХОД ПРОТИВНИКА...";
+        else if (gameState.playerColor === gameState.myColor) {
+             statusEl.textContent = isAlive ? `ТВОЙ ХОД (${gameState.actionsLeft} ОД)` : "ТВОЙ ХОД";
+        } else {
+             statusEl.textContent = "ХОД ПРОТИВНИКА...";
+        }
     }
+    
     if (gameState.isBuildMode) document.body.classList.add('build-mode'); else document.body.classList.remove('build-mode');
     
     const btnApogee = document.getElementById('btn-apogee');
@@ -389,19 +385,27 @@ export function updateUI() {
         if (gameState.isExpanded) btnApogee.style.display = 'none';
         else btnApogee.style.display = gameState.isBuildMode ? 'block' : 'none';
     }
+    
+    // ИСПРАВЛЕНА ЛОГИКА КНОПКИ ПРОПУСКА ХОДА
+    const passBtn = document.getElementById('btn-pass-turn');
+    if (passBtn) {
+        // Показываем кнопку, если сейчас мой ход, я жив и игра не закончена
+        const isMyTurn = (gameState.playerColor === gameState.myColor);
+        if (isMyTurn && !gameState.gameOver && isAlive) {
+            passBtn.style.display = 'block';
+        } else {
+            passBtn.style.display = 'none';
+        }
+    }
+
     updateBuildingCounters();
 }
 
-// === ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ОТРИСОВКИ СТАТИСТИКИ ===
 function renderModalStats(resourcesToShow) {
-    // resourcesToShow - массив объектов { key: 'wood', icon: '🌲', label: 'Дер', isProduct: boolean }
     let html = '<div class="modal-res-header">';
-    
     resourcesToShow.forEach(r => {
         const val = gameState.myResources[r.key] || 0;
-        // Если это ресурс, который производится (isProduct), подсвечиваем его
         const highlightClass = r.isProduct ? 'highlight' : ''; 
-        
         html += `
             <div class="m-res-item">
                 <span class="m-res-icon">${r.icon}</span>
@@ -409,22 +413,14 @@ function renderModalStats(resourcesToShow) {
             </div>
         `;
     });
-    
     html += '</div>';
     return html;
 }
 
-// === НОВЫЕ ФУНКЦИИ ОТКРЫТИЯ МОДАЛОК (ПЛАШКИ) ===
-
 export function openCampModal(fr, fc, tr, tc) {
     gameState.pendingInteraction = { from: {r:fr, c:fc}, target: {r:tr, c:tc} };
     const container = document.getElementById('camp-options');
-    
-    // Показываем сколько у нас ЕДЫ
-    const statsHTML = renderModalStats([
-        { key: 'food', icon: '🥩' }
-    ]);
-
+    const statsHTML = renderModalStats([ { key: 'food', icon: '🥩' } ]);
     container.innerHTML = statsHTML + `
         <div class="promo-btn" onclick="finishCampRecruit()">
             <div class="btn-left">
@@ -432,13 +428,10 @@ export function openCampModal(fr, fc, tr, tc) {
                 <span class="btn-title">НОВОБРАНЕЦ</span>
             </div>
             <div class="btn-right">
-                <div class="res-badge">
-                    <span>🥩</span> <span class="res-val">2</span>
-                </div>
+                <div class="res-badge"><span>🥩</span> <span class="res-val">2</span></div>
             </div>
         </div>
     `;
-    
     document.getElementById('camp-modal').classList.remove('hidden');
 }
 
@@ -446,14 +439,11 @@ export function openWorkshopModal(fr, fc, tr, tc) {
     gameState.pendingInteraction = { from: {r:fr, c:fc}, target: {r:tr, c:tc} }; 
     const modal = document.getElementById('workshop-modal');
     const container = modal.querySelector('.promo-options');
-    
-    // Показываем ресурсы для крафта ТАРАНА (Дерево, Кедр, Металл)
     const statsHTML = renderModalStats([
         { key: 'wood', icon: '🌲' },
         { key: 'cedar', icon: '🍁' },
         { key: 'metal', icon: '🔩' }
     ]);
-    
     container.innerHTML = statsHTML + `
         <div class="promo-btn" onclick="finishWorkshopBuild('ram')">
             <div class="btn-left">
@@ -461,13 +451,38 @@ export function openWorkshopModal(fr, fc, tr, tc) {
                 <span class="btn-title">ТАРАН</span>
             </div>
             <div class="btn-right" style="gap:5px;">
-                <div class="res-badge">🌲 <span class="res-val">4</span></div>
-                <div class="res-badge">🍁 <span class="res-val">4</span></div>
-                <div class="res-badge">🔩 <span class="res-val">2</span></div>
+                <div class="res-badge">🌲<span class="res-val">4</span></div>
+                <div class="res-badge">🍁<span class="res-val">4</span></div>
+                <div class="res-badge">🔩<span class="res-val">2</span></div>
             </div>
         </div>
     `;
+    modal.classList.remove('hidden');
+}
+
+export function openTorpedoModal(fr, fc, tr, tc) {
+    gameState.pendingInteraction = { from: {r:fr, c:fc}, target: {r:tr, c:tc} }; 
+    const modal = document.getElementById('torpedo-modal');
+    const container = modal.querySelector('.promo-options');
     
+    // Показываем ресурсы: Металл и Уран
+    const statsHTML = renderModalStats([
+        { key: 'metal', icon: '🔩' },
+        { key: 'uranium', icon: '☢️' }
+    ]);
+    
+    container.innerHTML = statsHTML + `
+        <div class="promo-btn" onclick="finishTorpedoBuild()">
+            <div class="btn-left">
+                <span class="btn-icon">🚀</span>
+                <span class="btn-title">ТОРПЕДА</span>
+            </div>
+            <div class="btn-right" style="gap:5px;">
+                <div class="res-badge">🔩<span class="res-val">10</span></div>
+                <div class="res-badge">☢️<span class="res-val">5</span></div>
+            </div>
+        </div>
+    `;
     modal.classList.remove('hidden');
 }
 
@@ -476,19 +491,13 @@ export function openAcademyModal(fr, fc, tr, tc, isT2) {
     const modal = document.getElementById('academy-modal');
     const content = document.getElementById('academy-content');
     content.innerHTML = '';
-    
-    // Показываем сколько у нас БУМАГИ
-    const statsHTML = renderModalStats([
-        { key: 'paper', icon: '📄' }
-    ]);
-    
+    const statsHTML = renderModalStats([ { key: 'paper', icon: '📄' } ]);
     const statsDiv = document.createElement('div');
     statsDiv.innerHTML = statsHTML;
     content.appendChild(statsDiv);
 
     const stdUnits = [{t:'n', i:'♞', n:'КОНЬ'}, {t:'b', i:'♝', n:'СЛОН'}, {t:'r', i:'♜', n:'ЛАДЬЯ'}];
     
-    // TIER 1
     const t1Group = document.createElement('div');
     t1Group.className = 'promo-options';
     t1Group.style.marginBottom = '15px';
@@ -511,7 +520,6 @@ export function openAcademyModal(fr, fc, tr, tc, isT2) {
     });
     content.appendChild(t1Group);
 
-    // TIER 2
     if (isT2) {
         const t2Group = document.createElement('div');
         t2Group.className = 'promo-options';
@@ -543,16 +551,10 @@ export function openProductionModal(type) {
     const container = document.getElementById('prod-options');
     const title = document.getElementById('prod-title');
     container.innerHTML = '';
-    
-    const gemOwned = gameState.myResources.gem || 0;
-    const manaGemOwned = gameState.myResources.mana_gem || 0;
-    const cedarOwned = gameState.myResources.cedar || 0;
-    const paperOwned = gameState.myResources.paper || 0;
+    const maxLimit = getMaxResourceLimit();
 
     if (type === 'jeweler') {
         title.innerText = "ЮВЕЛИРНАЯ";
-        
-        // Показываем Алмазы (тратятся) и Самоцветы (производятся)
         const statsHTML = renderModalStats([
             { key: 'gem', icon: '💎' },
             { key: 'mana_gem', icon: '🔮', isProduct: true }
@@ -574,8 +576,6 @@ export function openProductionModal(type) {
     } 
     else if (type === 'papermill') {
         title.innerText = "ФАБРИКА БУМАГИ";
-        
-        // Показываем Кедр (тратится) и Бумагу (производится)
         const statsHTML = renderModalStats([
             { key: 'cedar', icon: '🍁' },
             { key: 'paper', icon: '📄', isProduct: true }
@@ -599,7 +599,6 @@ export function openProductionModal(type) {
     modal.classList.remove('hidden');
 }
 
-// НОВОЕ: Открытие модалки башни мага
 export function openMageTowerModal(fr, fc, tr, tc) {
     gameState.pendingInteraction = { from: {r:fr, c:fc}, target: {r:tr, c:tc} };
     const modal = document.getElementById('magetower-modal');
