@@ -74,7 +74,8 @@ export function playSlashAnimation() {
 
 export function playMagicShot(fromR, fromC, toR, toC) {
     const getScreenPos = (r, c) => {
-        const visualRow = (gameState.playerColor === 'b') ? (gameState.rows - 1 - r) : r;
+        // ИСПРАВЛЕНИЕ: Используем myColor вместо playerColor для ориентации
+        const visualRow = (gameState.myColor === 'b') ? (gameState.rows - 1 - r) : r;
         const visualCol = c;
         const idx = (visualRow * gameState.cols) + visualCol;
         const squares = document.querySelectorAll('.square');
@@ -142,10 +143,8 @@ export function recalcBoard() {
     if (gameState.isBuildMode) safeTop = 150; 
     if (window.innerWidth <= 768) {
         if (gameState.isBuildMode) {
-            // safeBottom теперь меньше, т.к. меню фиксировано
             safeBottom = 200; 
         } else { safeBottom = 20; }
-        // safeTop на мобильных перенесен наверх, резервируем место под ресурсы
         safeTop = 110; 
     }
     const availableHeight = window.innerHeight - safeTop - safeBottom;
@@ -166,7 +165,6 @@ export function render() {
     const boardEl = document.getElementById('board');
     if(!boardEl) return;
     
-    // Гарантируем наличие маски
     if (!gameState.visibilityMask) updateFogOfWar();
 
     boardEl.innerHTML = '';
@@ -174,7 +172,8 @@ export function render() {
     document.documentElement.style.setProperty('--cols', gameState.cols);
     if (gameState.isExpanded) boardEl.classList.add('expanded');
     
-    const rangeR = gameState.playerColor === 'b' ? [...Array(gameState.rows).keys()].reverse() : [...Array(gameState.rows).keys()];
+    // ИСПРАВЛЕНИЕ: Используем myColor для отрисовки сетки, чтобы доска не вращалась
+    const rangeR = gameState.myColor === 'b' ? [...Array(gameState.rows).keys()].reverse() : [...Array(gameState.rows).keys()];
     const rangeC = [...Array(gameState.cols).keys()];
     
     rangeR.forEach(r => {
@@ -184,12 +183,10 @@ export function render() {
             square.className = `square ${isDark ? 'dark' : 'light'}`;
             if (isFog(r, c)) { square.classList.add('fog'); square.classList.add(isDark ? 'dark' : 'light'); }
             
-            // --- ТУМАН ВОЙНЫ ---
             const isVisible = gameState.visibilityMask[r][c];
             if (!isVisible) {
                 square.classList.add('shroud');
             }
-            // -------------------
 
             if (gameState.lastOpponentMove && gameState.lastOpponentMove.type === 'build' &&
                 gameState.lastOpponentMove.r === r && gameState.lastOpponentMove.c === c && isVisible) {
@@ -203,9 +200,7 @@ export function render() {
 
             if (gameState.selectedPiece) {
                 if (isValidMove(gameState.selectedPiece.r, gameState.selectedPiece.c, r, c)) {
-                    // Подсветка хода даже в туман (интуиция/разведка)
                     square.classList.add('legal-move');
-                    // Показываем, что там враг, ТОЛЬКО если клетка видима
                     if (isVisible && gameState.board[r][c] && gameState.board[r][c].color !== gameState.playerColor) {
                         square.classList.add('enemy-target');
                     }
@@ -221,8 +216,8 @@ export function render() {
 
             const p = gameState.board[r][c];
             if(p) {
-                // Рендерим фигуру, если она моя ИЛИ если клетка видима
-                if (p.color === gameState.playerColor || isVisible) {
+                // ИСПРАВЛЕНИЕ: Рендерим, если это МОЯ фигура (myColor), а не текущего игрока
+                if (p.color === gameState.myColor || isVisible) {
                     const pDiv = document.createElement('div');
                     
                     if (BUILDINGS.includes(p.type)) {
@@ -331,7 +326,8 @@ function drawArrow(boardEl, move) {
     if (!move.from || !move.to) return; 
 
     const sqSize = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sq-size'));
-    const isWhite = gameState.playerColor === 'w';
+    // ИСПРАВЛЕНИЕ: Используем myColor для ориентации стрелок
+    const isWhite = gameState.myColor === 'w';
     const getVisualPos = (r, c) => {
         const visualRow = isWhite ? r : (gameState.rows - 1 - r);
         const visualCol = c; 
@@ -762,6 +758,7 @@ function getSquareFromPoint(x, y) {
     if (idx === -1) return null;
     const visualRow = Math.floor(idx / gameState.cols);
     const c = idx % gameState.cols;
-    const r = gameState.playerColor === 'b' ? (gameState.rows - 1) - visualRow : visualRow;
+    // ИСПРАВЛЕНИЕ: Используем myColor для определения координат клика
+    const r = gameState.myColor === 'b' ? (gameState.rows - 1) - visualRow : visualRow;
     return { r, c };
 }
