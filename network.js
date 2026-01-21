@@ -1,3 +1,4 @@
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getDatabase, ref, set, onValue, remove, onDisconnect } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 import { gameState } from './state.js';
@@ -28,7 +29,7 @@ export function createGame() {
     const roomCode = Math.floor(100000 + Math.random() * 900000).toString();
     document.getElementById('room-code').value = roomCode;
     gameState.currentRoom = roomCode;
-    gameState.myColor = 'w';
+    gameState.myColor = 'w'; // Хост всегда белый
     document.getElementById('status').innerText = `КОМНАТА: ${roomCode}`;
     
     // --- КОПИРОВАНИЕ В БУФЕР ---
@@ -54,18 +55,25 @@ export function joinGame() {
     const roomCode = document.getElementById('room-code').value.trim();
     if (roomCode.length !== 6) return showToast("Введите 6-значный код!");
     gameState.currentRoom = roomCode;
-    gameState.myColor = 'b';
+    gameState.myColor = 'b'; // Присоединившийся всегда черный
     showToast(`Подключение...`);
     gameState.gameRef = ref(gameState.db, 'games/' + roomCode);
-    set(ref(gameState.db, 'games/' + roomCode + '/status'), 'playing')
-        .then(() => {
-            showToast("Успешное подключение!");
-            setupGameListener();
-            document.getElementById('connection-overlay').classList.add('hidden');
-            initBoard();
-            updateUI();
-        })
-        .catch((error) => { showToast("Ошибка: Комната не найдена."); });
+    
+    // Проверка существования комнаты
+    onValue(ref(gameState.db, 'games/' + roomCode), (snapshot) => {
+        if (snapshot.exists()) {
+            set(ref(gameState.db, 'games/' + roomCode + '/status'), 'playing')
+            .then(() => {
+                showToast("Успешное подключение!");
+                setupGameListener();
+                document.getElementById('connection-overlay').classList.add('hidden');
+                initBoard();
+                updateUI();
+            });
+        } else {
+            showToast("Ошибка: Комната не найдена.");
+        }
+    }, { onlyOnce: true });
 }
 
 export function waitForOpponent() {
@@ -85,12 +93,16 @@ export function setupGameListener() {
     const moveRef = ref(gameState.db, 'games/' + gameState.currentRoom + '/last_move');
     onValue(moveRef, (snapshot) => {
         const data = snapshot.val();
-        if (data && data.senderColor !== gameState.myColor) handleData(data);
+        // Принимаем данные, если они существуют и отправлены НЕ нами
+        if (data && data.senderColor !== gameState.myColor) {
+             handleData(data);
+        }
     });
 }
 
 export function sendNetworkMessage(data) {
     if (!gameState.gameRef) return;
     data.senderColor = gameState.myColor;
+    data.timestamp = Date.now(); // Для уникальности обновлений
     set(ref(gameState.db, 'games/' + gameState.currentRoom + '/last_move'), data);
 }

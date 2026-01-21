@@ -1,3 +1,4 @@
+
 import { initNetwork, createGame, joinGame, sendNetworkMessage } from './network.js';
 import { gameState } from './state.js';
 import { initBackground } from './background.js';
@@ -11,7 +12,6 @@ window.sendNetworkMessage = sendNetworkMessage;
 window.closeModal = closeModal;
 window.activateApogee = activateApogee;
 window.recruitPawn = recruitPawn;
-// window.useForge удалено, так как кузня удалена
 window.onSidebarPointerDown = onSidebarPointerDown;
 window.finishPromotion = finishPromotion;
 

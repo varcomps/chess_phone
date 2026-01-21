@@ -74,7 +74,6 @@ export function playSlashAnimation() {
 
 export function playMagicShot(fromR, fromC, toR, toC) {
     const getScreenPos = (r, c) => {
-        // ИСПРАВЛЕНИЕ: Используем myColor вместо playerColor для ориентации
         const visualRow = (gameState.myColor === 'b') ? (gameState.rows - 1 - r) : r;
         const visualCol = c;
         const idx = (visualRow * gameState.cols) + visualCol;
@@ -165,14 +164,13 @@ export function render() {
     const boardEl = document.getElementById('board');
     if(!boardEl) return;
     
-    if (!gameState.visibilityMask) updateFogOfWar();
+    if (!gameState.visibilityMask || gameState.visibilityMask.length !== gameState.rows) updateFogOfWar();
 
     boardEl.innerHTML = '';
     document.documentElement.style.setProperty('--rows', gameState.rows);
     document.documentElement.style.setProperty('--cols', gameState.cols);
     if (gameState.isExpanded) boardEl.classList.add('expanded');
     
-    // ИСПРАВЛЕНИЕ: Используем myColor для отрисовки сетки, чтобы доска не вращалась
     const rangeR = gameState.myColor === 'b' ? [...Array(gameState.rows).keys()].reverse() : [...Array(gameState.rows).keys()];
     const rangeC = [...Array(gameState.cols).keys()];
     
@@ -181,23 +179,23 @@ export function render() {
             const square = document.createElement('div');
             let isDark = (r + c) % 2 !== 0;
             square.className = `square ${isDark ? 'dark' : 'light'}`;
+            
+            // Визуальный эффект тумана (фона)
             if (isFog(r, c)) { square.classList.add('fog'); square.classList.add(isDark ? 'dark' : 'light'); }
             
+            // Логический туман войны (Shroud)
             const isVisible = gameState.visibilityMask[r][c];
             if (!isVisible) {
                 square.classList.add('shroud');
             }
-
-            if (gameState.lastOpponentMove && gameState.lastOpponentMove.type === 'build' &&
-                gameState.lastOpponentMove.r === r && gameState.lastOpponentMove.c === c && isVisible) {
-                square.classList.add('just-built');
-            }
             
+            // Подсветка таргетинга (башня мага)
             if (gameState.isTargetingMode && gameState.targetingSource) {
                 const dist = Math.max(Math.abs(gameState.targetingSource.r - r), Math.abs(gameState.targetingSource.c - c));
                 if (dist <= 2 && isVisible) square.style.boxShadow = "inset 0 0 20px rgba(155, 89, 182, 0.5)";
             }
 
+            // Подсветка возможных ходов
             if (gameState.selectedPiece) {
                 if (isValidMove(gameState.selectedPiece.r, gameState.selectedPiece.c, r, c)) {
                     square.classList.add('legal-move');
@@ -216,7 +214,7 @@ export function render() {
 
             const p = gameState.board[r][c];
             if(p) {
-                // ИСПРАВЛЕНИЕ: Рендерим, если это МОЯ фигура (myColor), а не текущего игрока
+                // Рендерим ТОЛЬКО если это моя фигура ИЛИ клетка видима
                 if (p.color === gameState.myColor || isVisible) {
                     const pDiv = document.createElement('div');
                     
@@ -262,6 +260,13 @@ export function render() {
                         
                         if (isUpgradedUnit(p)) { pDiv.classList.add('upgraded'); pDiv.classList.add('elite-unit'); }
                         if (p.movedThisTurn) pDiv.classList.add('exhausted');
+                        
+                        // --- ИНДИКАТОР ШАХА ---
+                        if (p.type === 'k' && gameState.isKingInCheck && p.color === gameState.myColor) {
+                             pDiv.classList.add('check-danger');
+                             square.style.boxShadow = "inset 0 0 30px red";
+                        }
+                        
                         if (p.armor > 0) {
                             const badge = document.createElement('div');
                             badge.className = 'shield-badge';
@@ -293,10 +298,9 @@ export function render() {
         });
     });
     
-    if (gameState.lastOpponentMove && gameState.lastOpponentMove.type !== 'build') drawArrow(boardEl, gameState.lastOpponentMove);
-    
     updateResourcePanel();
 }
+
 function updateResourcePanel() {
     const els = {
         wood: document.getElementById('res-wood-val'),
@@ -322,40 +326,7 @@ function updateResourcePanel() {
         }
     }
 }
-function drawArrow(boardEl, move) {
-    if (!move.from || !move.to) return; 
 
-    const sqSize = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sq-size'));
-    // ИСПРАВЛЕНИЕ: Используем myColor для ориентации стрелок
-    const isWhite = gameState.myColor === 'w';
-    const getVisualPos = (r, c) => {
-        const visualRow = isWhite ? r : (gameState.rows - 1 - r);
-        const visualCol = c; 
-        const x = visualCol * sqSize + sqSize / 2;
-        const y = visualRow * sqSize + sqSize / 2;
-        return {x, y};
-    };
-    const start = getVisualPos(move.from.r, move.from.c);
-    const end = getVisualPos(move.to.r, move.to.c);
-    const color = move.isCapture ? '#e74c3c' : '#2ecc71'; 
-    const svgNS = "http://www.w3.org/2000/svg";
-    const svg = document.createElementNS(svgNS, "svg");
-    svg.setAttribute("class", "arrow-overlay");
-    const defs = document.createElementNS(svgNS, "defs");
-    const marker = document.createElementNS(svgNS, "marker");
-    marker.setAttribute("id", "arrowhead");
-    marker.setAttribute("markerWidth", "6"); marker.setAttribute("markerHeight", "4");
-    marker.setAttribute("refX", "5"); marker.setAttribute("refY", "2"); marker.setAttribute("orient", "auto");
-    const polygon = document.createElementNS(svgNS, "polygon");
-    polygon.setAttribute("points", "0 0, 6 2, 0 4"); polygon.setAttribute("fill", color);
-    marker.appendChild(polygon); defs.appendChild(marker); svg.appendChild(defs);
-    const line = document.createElementNS(svgNS, "line");
-    line.setAttribute("x1", start.x); line.setAttribute("y1", start.y);
-    line.setAttribute("x2", end.x); line.setAttribute("y2", end.y);
-    line.setAttribute("stroke", color); line.setAttribute("stroke-width", "8");
-    line.setAttribute("stroke-opacity", "0.6"); line.setAttribute("marker-end", "url(#arrowhead)");
-    svg.appendChild(line); boardEl.appendChild(svg);
-}
 export function hasSpecial(color, type) { return gameState.board.flat().some(p => p && p.type === type && p.color === color); }
 function updateBuildingCounters() {
     if (!gameState.isBuildMode) return;
@@ -758,7 +729,10 @@ function getSquareFromPoint(x, y) {
     if (idx === -1) return null;
     const visualRow = Math.floor(idx / gameState.cols);
     const c = idx % gameState.cols;
-    // ИСПРАВЛЕНИЕ: Используем myColor для определения координат клика
-    const r = gameState.myColor === 'b' ? (gameState.rows - 1) - visualRow : visualRow;
+    
+    // ИСПРАВЛЕНИЕ ЛОГИКИ ОПРЕДЕЛЕНИЯ КООРДИНАТ:
+    const rangeR = gameState.myColor === 'b' ? [...Array(gameState.rows).keys()].reverse() : [...Array(gameState.rows).keys()];
+    const r = rangeR[visualRow];
+    
     return { r, c };
 }
